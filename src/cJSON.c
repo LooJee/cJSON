@@ -79,6 +79,10 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
         }
     }
 
+    n->next = NULL;
+    n->prev = NULL;
+    n->type = type;
+
     return n;
 
     ERR:
@@ -184,11 +188,28 @@ void cJsonAddInt(pJsonObj_T obj, const char *key, long value)
     }
 
     strcpy(node->key, key);
-
-    node->type = TYPE_INT;
     node->value.lVal = value;
-    node->next = NULL;
-    node->prev = NULL;
+
+    cJsonAdd(obj, node);
+}
+
+/*
+ * @description : if the value is deep copy in this funcion,
+ *                  so you should free value if the value is dynamic alloc out of the fucnion.
+ */
+void cJsonAddString(pJsonObj_T obj, const char *key, const char *value)
+{
+    if (obj == NULL) {
+        return ;
+    }
+
+    pJsonNode_T node = cJsonNodeNew(strlen(key)+1, strlen(value)+1, TYPE_STRING);
+    if (node == NULL) {
+        return;
+    }
+
+    strcpy(node->key, key);
+    strcpy(node->value.sVal, value);
 
     cJsonAdd(obj, node);
 }
@@ -199,6 +220,8 @@ void cJsonPrint(pJsonObj_T obj)
     for (pJsonNode_T tmp = obj->head; tmp != NULL; tmp = tmp->next) {
         if (tmp->type == TYPE_INT) {
             printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);
+        } else if (tmp->type == TYPE_STRING) {
+            printf("key : %s, value : %s\n", tmp->key, tmp->value.sVal);
         }
     }
 }
