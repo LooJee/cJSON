@@ -24,6 +24,7 @@ pJsonObj_T cJsonNew()
 
     obj->head = NULL;
     obj->size = 0;
+    obj->jsonStr = NULL;
 
     return obj;
 }
@@ -95,6 +96,7 @@ void cJsonFree(pJsonObj_T obj)
     pJsonNode_T tmp = obj->head;
     while (tmp != NULL) {
         obj->head = obj->head->next;
+        --obj.size;
 
         if (obj->head != NULL)
             obj->head->prev = NULL;
@@ -102,6 +104,8 @@ void cJsonFree(pJsonObj_T obj)
         cJsonNodeFree(tmp);
         tmp = obj->head;
     }
+    S_FREE(obj->jsonStr);
+    S_FREE(obj);
 }
 
 void cJsonNodeUpdate(pJsonNode_T oldV, pJsonNode_T newV)
@@ -233,7 +237,6 @@ void cJsonAddBool(pJsonObj_T obj, const char *key, bool value)
 
 void cJsonPrint(pJsonObj_T obj)
 {
-    printf("size of obj : %ld\n", obj->size);
     for (pJsonNode_T tmp = obj->head; tmp != NULL; tmp = tmp->next) {
         if (tmp->type == TYPE_INT) {
             printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);

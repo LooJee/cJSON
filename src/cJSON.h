@@ -40,6 +40,7 @@ typedef struct JsonArray_S{
 typedef struct JsonObj_S{
     unsigned long size;
     pJsonNode_T head;
+    char *jsonStr;
 }JsonObj_T, *pJsonObj_T;
 
 pJsonObj_T cJsonNew();
