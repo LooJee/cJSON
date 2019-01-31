@@ -23,6 +23,11 @@ int main(int arc, char *argv[])
 
     cJsonPrint(obj);
 
+    printf("after delete\n");
+    cJsonDel(obj, "test2");
+
+    cJsonPrint(obj);
+
     cJsonFree(obj);
 
     return 0;

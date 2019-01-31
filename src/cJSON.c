@@ -91,12 +91,37 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
     return NULL;
 }
 
+void cJsonDel(pJsonObj_T obj, const char *key)
+{
+    if (obj == NULL) {
+        return;
+    }
+
+    pJsonNode_T tmp = obj->head;
+    while (tmp != NULL) {
+        int cmp = strcmp(tmp->key, key);
+        /*this is a sorted list, if the key of tmp is larger than key, then tmp->next->key must larger than key*/
+        if (cmp > 0) {
+            return;
+        } else if (cmp == 0) {
+            if (tmp->prev != NULL) {
+                tmp->prev->next = tmp->next;
+            }
+            if (tmp->next != NULL) {
+                tmp->next->prev = tmp->prev;
+            }
+            cJsonNodeFree(tmp);
+        }
+        tmp = tmp->next;
+    }
+}
+
 void cJsonFree(pJsonObj_T obj)
 {
     pJsonNode_T tmp = obj->head;
     while (tmp != NULL) {
         obj->head = obj->head->next;
-        --obj.size;
+        --obj->size;
 
         if (obj->head != NULL)
             obj->head->prev = NULL;
