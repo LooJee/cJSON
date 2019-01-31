@@ -66,18 +66,18 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
             perror("malloc node->value.stringVal failed\n");
             goto ERR;
         }
-    } else if (type == TYPE_OBJECT) {
-        n->value.objVal = (pJsonObj_T)malloc(vSize);
-        if (n->value.objVal == NULL) {
-            perror("malloc node->value.objVal failed\n");
-            goto ERR;
-        }
-    } else if (type == TYPE_ARRAY) {
-        n->value.arrVal = (pJsonArray_T)malloc(vSize);
-        if (n->value.arrVal == NULL) {
-            perror("malloc node->value.arrVal failed\n");
-            goto ERR;
-        }
+//    } else if (type == TYPE_OBJECT) {
+//        n->value.objVal = (pJsonObj_T)malloc(vSize);
+//        if (n->value.objVal == NULL) {
+//            perror("malloc node->value.objVal failed\n");
+//            goto ERR;
+//        }
+//    } else if (type == TYPE_ARRAY) {
+//        n->value.arrVal = (pJsonArray_T)malloc(vSize);
+//        if (n->value.arrVal == NULL) {
+//            perror("malloc node->value.arrVal failed\n");
+//            goto ERR;
+//        }
     }
 
     n->next = NULL;
@@ -260,6 +260,22 @@ void cJsonAddBool(pJsonObj_T obj, const char *key, bool value)
     cJsonAdd(obj, node);
 }
 
+void cJsonAddObj(pJsonObj_T obj, const char *key, pJsonObj_T value)
+{
+    if (obj == NULL) {
+        return;
+    }
+    pJsonNode_T node = cJsonNodeNew(strlen(key)+1, 0, TYPE_OBJECT);
+    if (node == NULL) {
+        return;
+    }
+
+    strcpy(node->key, key);
+    node->value.objVal = value;
+
+    cJsonAdd(obj, node);
+}
+
 void cJsonPrint(pJsonObj_T obj)
 {
     for (pJsonNode_T tmp = obj->head; tmp != NULL; tmp = tmp->next) {
@@ -269,6 +285,10 @@ void cJsonPrint(pJsonObj_T obj)
             printf("key : %s, value : %s\n", tmp->key, tmp->value.stringVal);
         } else if (tmp->type == TYPE_BOOL) {
             printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal == true ? "true" : "false");
+        } else if (tmp->type == TYPE_OBJECT) {
+            printf("key : %s, object start\n", tmp->key);
+            cJsonPrint(tmp->value.objVal);
+            printf("key : %s, object end\n", tmp->key);
         }
     }
 }
