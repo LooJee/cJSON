@@ -38,7 +38,7 @@ void cJsonNodeFree(pJsonNode_T node)
     node->next = NULL;
     node->prev = NULL;
     if (node->type == TYPE_STRING) {
-        S_FREE(node->value.sVal);
+        S_FREE(node->value.stringVal);
     } else if (node->type == TYPE_OBJECT) {
         cJsonFree(node->value.objVal);
     }
@@ -60,9 +60,9 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
     }
 
     if (type == TYPE_STRING) {
-        n->value.sVal = (char *)malloc(vSize);
-        if (n->value.sVal == NULL) {
-            perror("malloc node->value.sVal failed\n");
+        n->value.stringVal = (char *)malloc(vSize);
+        if (n->value.stringVal == NULL) {
+            perror("malloc node->value.stringVal failed\n");
             goto ERR;
         }
     } else if (type == TYPE_OBJECT) {
@@ -209,7 +209,24 @@ void cJsonAddString(pJsonObj_T obj, const char *key, const char *value)
     }
 
     strcpy(node->key, key);
-    strcpy(node->value.sVal, value);
+    strcpy(node->value.stringVal, value);
+
+    cJsonAdd(obj, node);
+}
+
+void cJsonAddBool(pJsonObj_T obj, const char *key, bool value)
+{
+    if (obj == NULL) {
+        return;
+    }
+
+    pJsonNode_T node = cJsonNodeNew(strlen(key)+1, 0, TYPE_BOOL);
+    if (node == NULL) {
+        return;
+    }
+
+    strcpy(node->key, key);
+    node->value.boolVal = value;
 
     cJsonAdd(obj, node);
 }
@@ -221,7 +238,9 @@ void cJsonPrint(pJsonObj_T obj)
         if (tmp->type == TYPE_INT) {
             printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);
         } else if (tmp->type == TYPE_STRING) {
-            printf("key : %s, value : %s\n", tmp->key, tmp->value.sVal);
+            printf("key : %s, value : %s\n", tmp->key, tmp->value.stringVal);
+        } else if (tmp->type == TYPE_BOOL) {
+            printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal == true ? "true" : "false");
         }
     }
 }

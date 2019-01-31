@@ -18,8 +18,8 @@ typedef enum {
 
 typedef union {
     long lVal;
-    char *sVal;
-    bool bVal;
+    char *stringVal;
+    bool boolVal;
     struct JsonObj_S *objVal;
     struct JsonArray_S *arrVal;
 }JsonValue_U;
