@@ -30,6 +30,10 @@ pJsonObj_T cJsonNew()
 
 void cJsonNodeFree(pJsonNode_T node)
 {
+    if (node == NULL) {
+        return;
+    }
+
     S_FREE(node->key);
     node->next = NULL;
     node->prev = NULL;
@@ -39,6 +43,47 @@ void cJsonNodeFree(pJsonNode_T node)
         cJsonFree(node->value.objVal);
     }
     S_FREE(node);
+}
+
+pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E type)
+{
+    pJsonNode_T n = (pJsonNode_T)malloc(sizeof(JsonNode_T));
+    if (n == NULL) {
+        perror("malloc node failed\n");
+        goto ERR;
+    }
+
+    n->key = (char *)malloc(kSize);
+    if (n->key == NULL) {
+        perror("malloc node->key failed\n");
+        goto ERR;
+    }
+
+    if (type == TYPE_STRING) {
+        n->value.sVal = (char *)malloc(vSize);
+        if (n->value.sVal == NULL) {
+            perror("malloc node->value.sVal failed\n");
+            goto ERR;
+        }
+    } else if (type == TYPE_OBJECT) {
+        n->value.objVal = (pJsonObj_T)malloc(vSize);
+        if (n->value.objVal == NULL) {
+            perror("malloc node->value.objVal failed\n");
+            goto ERR;
+        }
+    } else if (type == TYPE_ARRAY) {
+        n->value.arrVal = (pJsonArray_T)malloc(vSize);
+        if (n->value.arrVal == NULL) {
+            perror("malloc node->value.arrVal failed\n");
+            goto ERR;
+        }
+    }
+
+    return n;
+
+    ERR:
+    cJsonNodeFree(n);
+    return NULL;
 }
 
 void cJsonFree(pJsonObj_T obj)
@@ -69,13 +114,15 @@ void cJsonNodeUpdate(pJsonNode_T oldV, pJsonNode_T newV)
  * @description : if base->key larger than value->key, then calling this fucntion.The value
  *                will be inserted before the base;
  */
-void cJsonNodeAddFrontAt(pJsonNode_T base, pJsonNode_T value)
+void cJsonNodeAddFrontAt(pJsonObj_T obj, pJsonNode_T base, pJsonNode_T value)
 {
     printf("add front\n");
     value->next = base;
     value->prev = base->prev;
     if (base->prev != NULL) {
         base->prev->next = value;
+    } else {
+        obj->head = value;
     }
     base->prev = value;
 }
@@ -117,7 +164,7 @@ void cJsonAdd(pJsonObj_T obj, pJsonNode_T value)
                 ++obj->size;
                 break;
             } else if (strcmp(tmp->key, value->key) > 0) {
-                cJsonNodeAddFrontAt(tmp, value);
+                cJsonNodeAddFrontAt(obj, tmp, value);
                 ++obj->size;
                 break;
             }
@@ -131,15 +178,11 @@ void cJsonAddInt(pJsonObj_T obj, const char *key, long value)
         return ;
     }
 
-    pJsonNode_T node = (pJsonNode_T)malloc(sizeof(JsonNode_T));
+    pJsonNode_T node = cJsonNodeNew(strlen(key)+1, 0, TYPE_INT);
     if (node == NULL) {
         return;
     }
-    node->key = (char *)malloc(strlen(key)+1);
-    if (node->key == NULL) {
-        S_FREE(node);
-        return;
-    }
+
     strcpy(node->key, key);
 
     node->type = TYPE_INT;

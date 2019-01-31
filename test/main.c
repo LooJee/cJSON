@@ -17,6 +17,7 @@ int main(int arc, char *argv[])
     cJsonAddInt(obj, "test1", 1);
     cJsonAddInt(obj, "test2", 2);
     cJsonAddInt(obj, "test3", 3);
+    cJsonAddInt(obj, "test0", 0);
 
     cJsonPrint(obj);
 

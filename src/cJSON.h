@@ -43,7 +43,6 @@ typedef struct JsonObj_S{
 }JsonObj_T, *pJsonObj_T;
 
 pJsonObj_T cJsonNew();
-void cJsonAdd(pJsonObj_T obj, pJsonNode_T value);
 void cJsonAddInt(pJsonObj_T obj, const char *key, long value);
 void cJsonAddString(pJsonObj_T obj, const char *key, const char *value);
 void cJsonAddObj(pJsonObj_T obj, const char *key, pJsonObj_T value);
