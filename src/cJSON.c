@@ -14,6 +14,19 @@
     }                   \
 } while(0);
 
+#define KEY_VAL_STR             "\"%s\":\"%s\"" //"key":prefix val suffix;
+#define KEY_VAL_INT             "\"%s\":%ld"
+#define KEY_VAL_BOOL            "\"%s\":%s"
+#define STR_PRE_SUF_FIX         '\"'
+#define OBJ_PRE_FIX             '{'
+#define OBJ_SUF_FIX             '}'
+#define BASE_STR_SIZE           128
+#define SHOULD_REALLOC          64
+#define TRUE_STR                "true"
+#define FALSE_STR               "false"
+#define MAX_NUM_STR_LEN         32
+#define MAX_BOOL_STR_LEN        6
+
 pJsonObj_T cJsonNew()
 {
     pJsonObj_T obj = (pJsonObj_T)malloc(sizeof(JsonObj_T));
@@ -66,18 +79,6 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
             perror("malloc node->value.stringVal failed\n");
             goto ERR;
         }
-//    } else if (type == TYPE_OBJECT) {
-//        n->value.objVal = (pJsonObj_T)malloc(vSize);
-//        if (n->value.objVal == NULL) {
-//            perror("malloc node->value.objVal failed\n");
-//            goto ERR;
-//        }
-//    } else if (type == TYPE_ARRAY) {
-//        n->value.arrVal = (pJsonArray_T)malloc(vSize);
-//        if (n->value.arrVal == NULL) {
-//            perror("malloc node->value.arrVal failed\n");
-//            goto ERR;
-//        }
     }
 
     n->next = NULL;
@@ -149,7 +150,6 @@ void cJsonNodeUpdate(pJsonNode_T oldV, pJsonNode_T newV)
  */
 void cJsonNodeAddFrontAt(pJsonObj_T obj, pJsonNode_T base, pJsonNode_T value)
 {
-    printf("add front\n");
     value->next = base;
     value->prev = base->prev;
     if (base->prev != NULL) {
@@ -166,7 +166,6 @@ void cJsonNodeAddFrontAt(pJsonObj_T obj, pJsonNode_T base, pJsonNode_T value)
  */
 void cJsonNodeAddNextTo(pJsonNode_T base, pJsonNode_T value)
 {
-    printf("add next\n");
     value->next = base->next;
     value->prev = base;
     if (base->next != NULL) {
@@ -284,11 +283,131 @@ void cJsonPrint(pJsonObj_T obj)
         } else if (tmp->type == TYPE_STRING) {
             printf("key : %s, value : %s\n", tmp->key, tmp->value.stringVal);
         } else if (tmp->type == TYPE_BOOL) {
-            printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal == true ? "true" : "false");
+            printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal ? TRUE_STR : FALSE_STR);
         } else if (tmp->type == TYPE_OBJECT) {
             printf("key : %s, object start\n", tmp->key);
             cJsonPrint(tmp->value.objVal);
             printf("key : %s, object end\n", tmp->key);
         }
     }
+}
+
+char *cJsonNodeFormatNum(pJsonNode_T node)
+{
+    unsigned long len = strlen(KEY_VAL_INT)+strlen(node->key)+MAX_NUM_STR_LEN+1;
+    char *str = (char *)malloc(len);
+    if (str) {
+        snprintf(str, len, KEY_VAL_INT, node->key, node->value.lVal);
+    }
+
+    return str;
+}
+
+char *cJsonNodeFormatBool(pJsonNode_T node)
+{
+    unsigned long len = strlen(KEY_VAL_BOOL) + strlen(node->key) + MAX_BOOL_STR_LEN + 1;
+    char *str = (char *)malloc(len);
+    if (str) {
+        snprintf(str, len, KEY_VAL_BOOL, node->key, node->value.boolVal ? TRUE_STR : FALSE_STR);
+    }
+
+    return str;
+}
+
+char *cJsonNodeFormatString(pJsonNode_T node)
+{
+    unsigned long len = strlen(KEY_VAL_STR) + strlen(node->key) + strlen(node->value.stringVal)+1;
+    char *str = (char *)malloc(len);
+    if (str) {
+        snprintf(str, len, KEY_VAL_STR, node->key, node->value.stringVal);
+    }
+
+    return str;
+}
+
+char *cJsonNodeFormatObj(pJsonNode_T node)
+{
+    char *val = cJsonMashal(node->value.objVal);
+    char *str = NULL;
+    if (val) {
+        unsigned long len = strlen(KEY_VAL_BOOL) + strlen(node->key) + strlen(val)+1;
+        str = (char *)malloc(len);
+        if (str) {
+            snprintf(str, len, KEY_VAL_BOOL, node->key, val);
+            S_FREE(val);
+        }
+    }
+
+    return str;
+}
+
+char *cJsonNodeFormat(pJsonNode_T node)
+{
+    char *s = NULL;
+    switch (node->type) {
+        case TYPE_INT:
+            s = cJsonNodeFormatNum(node);
+            break;
+        case TYPE_BOOL:
+            s = cJsonNodeFormatBool(node);
+            break;
+        case TYPE_STRING:
+            s = cJsonNodeFormatString(node);
+            break;
+        case TYPE_OBJECT:
+            s = cJsonNodeFormatObj(node);
+        default:
+            break;
+    }
+    return s;
+}
+
+char *cJsonMashal(pJsonObj_T obj)
+{
+    char *str = (char *)malloc(BASE_STR_SIZE);
+    if (str == NULL) {
+        return NULL;
+    }
+    unsigned long strSize = BASE_STR_SIZE;
+    memset(str, 0, BASE_STR_SIZE);
+    str[0] = OBJ_PRE_FIX;
+    char *tmp = str+1;
+
+    for (pJsonNode_T node = obj->head; node != NULL; node = node->next) {
+        char *val = cJsonNodeFormat(node);
+        if (val == NULL) {
+            S_FREE(str);
+            return NULL;
+        }
+        unsigned long len = tmp-str;
+        unsigned long valLen = strlen(val);
+        if (len + valLen > SHOULD_REALLOC) {
+            strSize += (valLen/SHOULD_REALLOC+1)*SHOULD_REALLOC;
+            char *rstr = (char *)realloc(str, strSize);
+            if (rstr == NULL) {
+                S_FREE(str);
+                S_FREE(val);
+                break;
+            } else {
+                str = rstr;
+                tmp = str+len;
+            }
+        }
+        sprintf(tmp, "%s", val);
+        S_FREE(val);
+        tmp += valLen;
+
+        if (node->next == NULL) {
+            *tmp = OBJ_SUF_FIX;
+            *(tmp+1) = '\0';
+        } else {
+            *tmp = ',';
+            ++tmp;
+        }
+    }
+
+    S_FREE(obj->jsonStr);
+    obj->jsonStr = str;
+
+    return obj->jsonStr;
 }

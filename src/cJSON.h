@@ -53,8 +53,8 @@ void *cJsonValue(pJsonObj_T obj, const char *key);
 JSONTYPE_E cJsonValueType(pJsonObj_T obj, const char *key);
 void cJsonDel(pJsonObj_T obj, const char *key);
 void cJsonFree(pJsonObj_T obj);
-void cJsonMashal(pJsonObj_T obj);
-void cJsonParse(const char *text);
+char *cJsonMashal(pJsonObj_T obj);
+pJsonObj_T cJsonParse(const char *text);
 void cJsonPrint(pJsonObj_T obj);
 
 #endif //CJSON_CJSON_H

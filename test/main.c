@@ -20,17 +20,18 @@ int main(int arc, char *argv[])
     cJsonAddInt(obj, "test0", 0);
     cJsonAddBool(obj, "bool0", true);
     cJsonAddBool(obj, "bool1", false);
-    cJsonPrint(obj);
-
-    printf("after delete\n");
-    cJsonDel(obj, "test2");
-    cJsonPrint(obj);
-
-    printf("add json object\n");
     pJsonObj_T obj_2 = cJsonNew();
     cJsonAddString(obj_2, "hello", "hello");
     cJsonAddObj(obj, "obj2", obj_2);
-    cJsonPrint(obj);
+    printf("mashal : %s\n", cJsonMashal(obj));
+//    cJsonPrint(obj);
+//
+//    printf("after delete\n");
+//    cJsonDel(obj, "test2");
+//    cJsonPrint(obj);
+//
+//    printf("add json object\n");
+//    cJsonPrint(obj);
 
 
     cJsonFree(obj);
