@@ -16,10 +16,12 @@
 
 #define KEY_VAL_STR             "\"%s\":\"%s\"" //"key":prefix val suffix;
 #define KEY_VAL_INT             "\"%s\":%ld"
-#define KEY_VAL_BOOL            "\"%s\":%s"
+#define KEY_VAL_BOOL            "\"%s\":%s"     // for bool, json object
 #define STR_PRE_SUF_FIX         '\"'
 #define OBJ_PRE_FIX             '{'
 #define OBJ_SUF_FIX             '}'
+#define ARR_PRE_FIX             '['
+#define ARR_SUF_FIX             ']'
 #define BASE_STR_SIZE           128
 #define SHOULD_REALLOC          64
 #define TRUE_STR                "true"
@@ -411,3 +413,34 @@ char *cJsonMashal(pJsonObj_T obj)
 
     return obj->jsonStr;
 }
+
+pJsonObj_T cJsonParse(const char *text)
+{
+    pJsonObj_T obj = cJsonNew();
+    if (obj == NULL) {
+        return NULL;
+    }
+
+    return obj;
+}
+
+pJsonObj_T cJsonParseObj(const char *text)
+{
+
+}
+
+pJsonNode_T cJsonParseInt(const char *text)
+{
+
+}
+
+pJsonNode_T cJsonParseBool(const char *text)
+{
+
+}
+
+pJsonNode_T cJsonParseString(const char *text)
+{
+
+}
+
