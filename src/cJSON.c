@@ -2,32 +2,61 @@
 // Created by Zer0 on 2019/1/30.
 //
 
-#include "cJSON.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "cJSON.h"
+#include "cJsonDefines.h"
 
-#define S_FREE(p) do {  \
-    if (p) {            \
-        free(p);        \
-        p = NULL;       \
-    }                   \
-} while(0);
+//解析 json 函数指针
+typedef int (*cJsonParserFunc) (pParserStruct_T st);
 
-#define KEY_VAL_STR             "\"%s\":\"%s\"" //"key":prefix val suffix;
-#define KEY_VAL_INT             "\"%s\":%ld"
-#define KEY_VAL_BOOL            "\"%s\":%s"     // for bool, json object
-#define STR_PRE_SUF_FIX         '\"'
-#define OBJ_PRE_FIX             '{'
-#define OBJ_SUF_FIX             '}'
-#define ARR_PRE_FIX             '['
-#define ARR_SUF_FIX             ']'
-#define BASE_STR_SIZE           128
-#define SHOULD_REALLOC          64
-#define TRUE_STR                "true"
-#define FALSE_STR               "false"
-#define MAX_NUM_STR_LEN         32
-#define MAX_BOOL_STR_LEN        6
+/*
+    IDLE = 0,
+    WAIT_FOR_KEY,
+    PARSE_KEY_START,
+    PARSE_KEY_END,
+    WAIT_FOR_VAL,
+    PARSE_VAL_NUM_START,
+    PARSE_VAL_BOOL_START,
+    PARSE_VAL_STRING_START,
+    PARSE_VAL_OBJECT_START,
+    PARSE_VAL_ARRAY_START,
+    PARSE_VAL_END,
+    ERROR,
+    SUCCESS,
+    DONE
+ */
+int cJsonParseObjStateIDLE(pParserStruct_T st);
+int cJsonParseObjStateWFK(pParserStruct_T st);
+int cJsonParseObjStatePKS(pParserStruct_T st);
+int cJsonParseObjStatePKE(pParserStruct_T st);
+int cJsonParseObjStateWFV(pParserStruct_T st);
+int cJsonParseObjStatePVNS(pParserStruct_T st);
+int cJsonParseObjStatePVBS(pParserStruct_T st);
+int cJsonParseObjStatePVSS(pParserStruct_T st);
+int cJsonParseObjStatePVOS(pParserStruct_T st);
+int cJsonParseObjStatePVAS(pParserStruct_T st);
+int cJsonParseObjStatePVE(pParserStruct_T st);
+int cJsonParseObjStateERR(pParserStruct_T st);
+int cJsonParseObjStateSuccess(pParserStruct_T st);
+
+cJsonParserFunc gJsonObjParsers[] = {
+    cJsonParseObjStateIDLE,
+    cJsonParseObjStateWFK,
+    cJsonParseObjStatePKS,
+    cJsonParseObjStatePKE,
+    cJsonParseObjStateWFV,
+    cJsonParseObjStatePVNS,
+    cJsonParseObjStatePVBS,
+    cJsonParseObjStatePVSS,
+    cJsonParseObjStatePVOS,
+    cJsonParseObjStatePVAS,
+    cJsonParseObjStatePVE,
+    cJsonParseObjStateERR,
+    cJsonParseObjStateSuccess
+};
+
 
 pJsonObj_T cJsonNew()
 {
@@ -56,7 +85,7 @@ void cJsonNodeFree(pJsonNode_T node)
     if (node->type == TYPE_STRING) {
         S_FREE(node->value.stringVal);
     } else if (node->type == TYPE_OBJECT) {
-        cJsonFree(node->value.objVal);
+        cJsonFree(&(node->value.objVal));
     }
     S_FREE(node);
 }
@@ -119,21 +148,21 @@ void cJsonDel(pJsonObj_T obj, const char *key)
     }
 }
 
-void cJsonFree(pJsonObj_T obj)
+void cJsonFree(pJsonObj_T *obj)
 {
-    pJsonNode_T tmp = obj->head;
+    pJsonNode_T tmp = (*obj)->head;
     while (tmp != NULL) {
-        obj->head = obj->head->next;
-        --obj->size;
+        (*obj)->head = (*obj)->head->next;
+        --(*obj)->size;
 
-        if (obj->head != NULL)
-            obj->head->prev = NULL;
+        if ((*obj)->head != NULL)
+            (*obj)->head->prev = NULL;
 
         cJsonNodeFree(tmp);
-        tmp = obj->head;
+        tmp = (*obj)->head;
     }
-    S_FREE(obj->jsonStr);
-    S_FREE(obj);
+    S_FREE((*obj)->jsonStr);
+    S_FREE(*obj);
 }
 
 void cJsonNodeUpdate(pJsonNode_T oldV, pJsonNode_T newV)
@@ -416,31 +445,86 @@ char *cJsonMashal(pJsonObj_T obj)
 
 pJsonObj_T cJsonParse(const char *text)
 {
-    pJsonObj_T obj = cJsonNew();
-    if (obj == NULL) {
+    if (text == NULL) {
         return NULL;
     }
 
-    return obj;
+    ParserStruct_T obj;
+    obj.curNode = NULL;
+    obj.obj = NULL;
+    obj.text = text;
+    obj.state = OBJ_STATE_IDLE;
+
+    while (obj.state != OBJ_STATE_DONE) {
+        gJsonObjParsers[obj.state](&obj);
+    }
+
+    return obj.obj;
 }
 
-pJsonObj_T cJsonParseObj(const char *text)
+int cJsonParseObjStateIDLE(pParserStruct_T st)
+{
+    return 0;
+}
+
+int cJsonParseObjStateWFK(pParserStruct_T st)
 {
 
 }
 
-pJsonNode_T cJsonParseInt(const char *text)
+int cJsonParseObjStatePKS(pParserStruct_T st)
 {
 
 }
 
-pJsonNode_T cJsonParseBool(const char *text)
+int cJsonParseObjStatePKE(pParserStruct_T st)
 {
 
 }
 
-pJsonNode_T cJsonParseString(const char *text)
+int cJsonParseObjStateWFV(pParserStruct_T st)
 {
 
 }
+
+int cJsonParseObjStatePVNS(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStatePVBS(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStatePVSS(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStatePVOS(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStatePVAS(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStatePVE(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStateERR(pParserStruct_T st)
+{
+
+}
+
+int cJsonParseObjStateSuccess(pParserStruct_T st)
+{
+
+}
+
 

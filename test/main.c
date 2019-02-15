@@ -34,7 +34,7 @@ int main(int arc, char *argv[])
 //    cJsonPrint(obj);
 
 
-    cJsonFree(obj);
+    cJsonFree(&obj);
 
     return 0;
 }
