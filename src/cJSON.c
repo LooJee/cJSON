@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "cJSON.h"
 #include "cJsonDefines.h"
 
@@ -73,23 +74,33 @@ pJsonObj_T cJsonNew()
     return obj;
 }
 
-void cJsonNodeFree(pJsonNode_T node)
+void cJsonNodeFree(pJsonNode_T *node)
 {
-    if (node == NULL) {
+    if (node == NULL || *node == NULL) {
         return;
     }
 
-    S_FREE(node->key);
-    node->next = NULL;
-    node->prev = NULL;
-    if (node->type == TYPE_STRING) {
-        S_FREE(node->value.stringVal);
-    } else if (node->type == TYPE_OBJECT) {
-        cJsonFree(&(node->value.objVal));
+    S_FREE((*node)->key);
+    (*node)->next = NULL;
+    (*node)->prev = NULL;
+    if ((*node)->type == TYPE_STRING) {
+        S_FREE((*node)->value.stringVal);
+    } else if ((*node)->type == TYPE_OBJECT) {
+        cJsonFree(&((*node)->value.objVal));
     }
-    S_FREE(node);
+    S_FREE(*node);
 }
 
+/*
+ * @description : 创建一个 json 的键值对
+ * @in :
+ *      kSize : 键的空间
+ *      vSize : 值的空间
+ *      type : json 数据的类型
+ * @out :
+ *      成功，则返回创建的对象；
+ *      否则，返回 NULL。
+ * */
 pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E type)
 {
     pJsonNode_T n = (pJsonNode_T)malloc(sizeof(JsonNode_T));
@@ -119,7 +130,7 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
     return n;
 
     ERR:
-    cJsonNodeFree(n);
+    cJsonNodeFree(&n);
     return NULL;
 }
 
@@ -142,7 +153,7 @@ void cJsonDel(pJsonObj_T obj, const char *key)
             if (tmp->next != NULL) {
                 tmp->next->prev = tmp->prev;
             }
-            cJsonNodeFree(tmp);
+            cJsonNodeFree(&tmp);
         }
         tmp = tmp->next;
     }
@@ -158,7 +169,7 @@ void cJsonFree(pJsonObj_T *obj)
         if ((*obj)->head != NULL)
             (*obj)->head->prev = NULL;
 
-        cJsonNodeFree(tmp);
+        cJsonNodeFree(&tmp);
         tmp = (*obj)->head;
     }
     S_FREE((*obj)->jsonStr);
@@ -172,7 +183,7 @@ void cJsonNodeUpdate(pJsonNode_T oldV, pJsonNode_T newV)
     if (oldV->prev != NULL)
         oldV->prev->next = newV;
     newV->next = oldV->next;
-    cJsonNodeFree(oldV);
+    cJsonNodeFree(&oldV);
 }
 
 /*
@@ -308,6 +319,11 @@ void cJsonAddObj(pJsonObj_T obj, const char *key, pJsonObj_T value)
 
 void cJsonPrint(pJsonObj_T obj)
 {
+    if (obj == NULL) {
+        printf("null\n");
+        return;
+    }
+
     for (pJsonNode_T tmp = obj->head; tmp != NULL; tmp = tmp->next) {
         if (tmp->type == TYPE_INT) {
             printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);
@@ -462,69 +478,311 @@ pJsonObj_T cJsonParse(const char *text)
     return obj.obj;
 }
 
+/*
+ * @description: 解析json对象字符串的初始状态
+ *                  1、当遇到 { 时，状态变为 OBJ_STATE_WAIT_FOR_KEY;
+ *                  2、当遇到间隔符时，状态不变化;
+ *                  3、其它字符时，状态变为 OBJ_STATE_ERROR;
+ * */
 int cJsonParseObjStateIDLE(pParserStruct_T st)
 {
+    if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else if (*st->text == OBJ_PRE_FIX) {
+        st->obj = cJsonNew();
+        st->state = OBJ_STATE_WAIT_FOR_KEY;
+        ++st->text;
+    } else {
+        st->state = OBJ_STATE_ERROR;
+        ++st->text;
+    }
+
     return 0;
 }
 
+/*
+ * @description : 等待 json key 状态
+ *                  1、当遇到字符 “ 时，进入 OBJ_STATE_PARSE_KEY_START
+ *                  2、当遇到字符 } 时，进入 OBJ_STATE_SUCCESS（空的 json 对象）
+ *                  3、当遇到间隔符时，状态不变
+ *                  4、其它字符时，状态变为 OBJ_STATE_ERROR
+ * */
 int cJsonParseObjStateWFK(pParserStruct_T st)
 {
+    if (*st->text == STR_PRE_SUF_FIX) {
+        st->curNode = (pJsonNode_T)malloc(sizeof(JsonNode_T));
+        if (st->curNode == NULL) {
+            st->state = OBJ_STATE_ERROR;
+        } else {
+            memset(st->curNode, 0, sizeof(JsonNode_T));
+            st->state = OBJ_STATE_PARSE_KEY_START;
+            ++st->text;
+        }
+    } else if (*st->text == OBJ_SUF_FIX) {
+        st->state = OBJ_STATE_SUCCESS;
+        ++st->text;
+    } else if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else {
+        st->state = OBJ_STATE_ERROR;
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 json key 状态
+ *                  1、当遇到字符 " 时，进入 OBJ_STATE_PARSE_KEY_END
+ *                  2、当遇到字符 '\0' 时，进入 OBJ_STATE_ERROR
+ *                  3、其他字符时，状态不改变
+ * */
 int cJsonParseObjStatePKS(pParserStruct_T st)
 {
+    char *strSuffix = strchr(st->text, STR_PRE_SUF_FIX);
+    if (strSuffix == NULL) {
+        st->state = OBJ_STATE_ERROR;
+    } else {
+        unsigned long keyLen = strSuffix - st->text;
+        st->curNode->key = (char *)malloc(keyLen);
+        if (st->curNode->key == NULL) {
+            st->state = OBJ_STATE_ERROR;
+        } else {
+            strncpy(st->curNode->key, st->text, keyLen);
+            st->curNode->key[keyLen] = STR_EOF;
+            st->text = strSuffix + 1;
+            st->state = OBJ_STATE_PARSE_KEY_END;
+        }
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 json object key 结束，等待 : 字符
+ *                  1、当遇到 : 字符时，状态变为 OBJ_STATE_WAIT_FOR_VAL
+ *                  2、当字符为间隔符时，状态不变
+ *                  3、当为其它字符时，状态变为 OBJ_STATE_ERROR
+ * */
 int cJsonParseObjStatePKE(pParserStruct_T st)
 {
+    char *colon = strchr(st->text, COLON_SYMBOL);
+    if (colon == NULL) {
+        st->state = OBJ_STATE_ERROR;
+    } else {
+        st->state = OBJ_STATE_WAIT_FOR_VAL;
+        st->text = colon + 1;
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 等待 json object 的值
+ *                  1、当字符为 " 时，值可能为 string 类型，状态变为 OBJ_STATE_PARSE_VAL_STR_START
+ *                  2、当字符为 数字 时，值可能为数字，状态变为 OBJ_STATE_PARSE_VAL_NUM_START
+ *                  3、当字符为 t 或 f 时，值可能为 bool 类型，状态变为 OBJ_STATE_PARSE_VAL_BOOL_START
+ *                  4、当字符为 [ 时，值可能为数组类型，状态变为 OBJ_STATE_PARSE_VAL_ARR_START
+ *                  5、当字符为 { 时，值可能为 json 对象，状态变为 OBJ_STATE_PARSE_VAL_OBJ_START
+ *                  6、当为间隔符时，状态不变
+ *                  7、当为其它字符时，状态变为 OBJ_STATE_ERROR
+ * */
 int cJsonParseObjStateWFV(pParserStruct_T st)
 {
+    if (*st->text == STR_PRE_SUF_FIX) {
+        st->state = OBJ_STATE_PARSE_VAL_STR_START;
+        ++st->text;
+    } else if (isdigit(*st->text)) {
+        st->state = OBJ_STATE_PARSE_VAL_NUM_START;
+    } else if (IS_BOOL_PREFIX(*st->text)) {
+        st->state = OBJ_STATE_PARSE_VAL_BOOL_START;
+    } else if (*st->text == ARR_PRE_FIX) {
+        st->state = OBJ_STATE_PARSE_VAL_ARR_START;
+    } else if (*st->text == OBJ_PRE_FIX) {
+        st->state = OBJ_STATE_PARSE_VAL_OBJ_START;
+    } else if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else {
+        st->state = OBJ_STATE_ERROR;
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 number value 状态
+ *                  1、当字符为间隔符，数字值可能结束，状态变为 OBJ_STATE_PARSE_VAL_END
+ *                  2、当字符为数字，状态不变
+ *                  3、当字符为 , 时，状态变为 OBJ_STATE_WAIT_FOR_KEY
+ *                  4、当为其它字符时，状态变为 OBJ_STATE_ERROR
+ * */
 int cJsonParseObjStatePVNS(pParserStruct_T st)
 {
+    if (IS_GAP_SYMBOL(*st->text)) {
+        st->state = OBJ_STATE_PARSE_VAL_END;
+        cJsonAdd(st->obj, st->curNode);
+        st->curNode = NULL;
+        ++st->text;
+    } else if (isdigit(*st->text)) {
+        //字符串 to 数字
+        st->curNode->value.lVal = st->curNode->value.lVal * 10 + (*st->text - '0');
+        ++st->text;
+    } else if (*st->text == COMMA_SYMBOL) {
+        st->state = OBJ_STATE_WAIT_FOR_KEY;
+        cJsonAdd(st->obj, st->curNode);
+        st->curNode = NULL;
+        ++st->text;
+    } else if (*st->text == OBJ_SUF_FIX) {
+        st->state = OBJ_STATE_SUCCESS;
+        cJsonAdd(st->obj, st->curNode);
+        st->curNode = NULL;
+        ++st->text;
+    } else {
+        st->state = OBJ_STATE_ERROR;
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 bool value 状态
+ *                  1、当字符串和 true 或 false 相等时，值确认为 bool类型，状态变为 OBJ_STATE_PARSE_VAL_END
+ *                  2、否则，状态变为 OBJ_STATE_ERROR
+ * */
 int cJsonParseObjStatePVBS(pParserStruct_T st)
 {
+    if (strncmp(st->text, TRUE_STR, TRUE_STR_LEN) == 0) {
+        st->state = OBJ_STATE_PARSE_VAL_END;
+        st->curNode->value.boolVal = true;
+        st->curNode->type = TYPE_BOOL;
+        cJsonAdd(st->obj, st->curNode);
+        st->curNode = NULL;
+        st->text += TRUE_STR_LEN;
+    } else if (strncmp(st->text, FALSE_STR, FALSE_STR_LEN) == 0) {
+        st->state = OBJ_STATE_PARSE_VAL_END;
+        st->curNode->type = TYPE_BOOL;
+        st->curNode->value.boolVal = false;
+        cJsonAdd(st->obj, st->curNode);
+        st->curNode = NULL;
+        st->text += FALSE_STR_LEN;
+    } else {
+        st->state = OBJ_STATE_ERROR;
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 string value 状态
+ *                  1、当字符为 " 时，解析字符串结束，状态变为 OBJ_STATE_PARSE_VAL_END
+ *                  2、当字符为 '\0' 时， 状态变为 OBJ_STATE_ERROR
+ *                  3、当为其它字符时，状态不变。
+ * */
 int cJsonParseObjStatePVSS(pParserStruct_T st)
 {
+    char *strSuffix = strchr(st->text, STR_PRE_SUF_FIX);
+    if (strSuffix == NULL) {
+        st->state = OBJ_STATE_ERROR;
+    } else {
+        size_t valLen = strSuffix - st->text;
+        st->curNode->value.stringVal = (char *)malloc(valLen);
+        if (st->curNode->value.stringVal == NULL) {
+            st->state = OBJ_STATE_ERROR;
+        } else {
+            strncpy(st->curNode->value.stringVal, st->text, valLen);
+            st->curNode->value.stringVal[valLen] = STR_EOF;
+            st->curNode->type = TYPE_STRING;
+            cJsonAdd(st->obj, st->curNode);
+            st->curNode = NULL;
+            st->text = strSuffix + 1;
+            st->state = OBJ_STATE_PARSE_VAL_END;
+        }
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 object value 状态
+ *                  1、创建新的 json object，通过状态机来解析，然后根据解析结果来判断解析是否成功；
+ *                  解析成功，则状态转为 OBJ_STATE_PARSE_VAL_END;否则，状态转为
+ * */
 int cJsonParseObjStatePVOS(pParserStruct_T st)
 {
+    ParserStruct_T subSt;
+    subSt.text = st->text;
+    subSt.state = OBJ_STATE_IDLE;
+    subSt.obj = NULL;
+    subSt.curNode = (pJsonNode_T)malloc(sizeof(JsonNode_T));
 
+    if (subSt.curNode == NULL) {
+        st->state = OBJ_STATE_ERROR;
+    } else {
+        while (subSt.state != OBJ_STATE_DONE) {
+            gJsonObjParsers[subSt.state](&subSt);
+        }
+
+        if (subSt.ret == 0) {
+            st->text = subSt.text;
+            st->curNode->value.objVal = subSt.obj;
+            st->curNode->type = TYPE_OBJECT;
+            cJsonAdd(st->obj, st->curNode);
+            st->curNode = NULL;
+            st->state = OBJ_STATE_PARSE_VAL_END;
+        } else {
+            st->state = OBJ_STATE_ERROR;
+        }
+    }
+
+
+    return 0;
 }
 
 int cJsonParseObjStatePVAS(pParserStruct_T st)
 {
 
+    return 0;
 }
 
+/*
+ * @description : 解析 value 成功状态
+ *                  1、当遇到 } 时，已经提取处完整的 json 对象，状态设置为 OBJ_STATE_SUCCESS
+ *                  2、当遇到 , 时，说明可能有其它的 json 键值对存在，状态设置为 OBJ_STATE_WAIT_FOR_KEY
+ *                  3、当为间隔符时，状态不变化
+ *                  4、当为其它字符时，状态设置为 OBJ_STATE_ERROR
+ * */
 int cJsonParseObjStatePVE(pParserStruct_T st)
 {
+    if (*st->text == '}') {
+        st->state = OBJ_STATE_SUCCESS;
+        ++st->text;
+    } else if (*st->text == ',') {
+        st->state = OBJ_STATE_WAIT_FOR_KEY;
+        ++st->text;
+    } else if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else {
+        st->state = OBJ_STATE_ERROR;
+    }
 
+    return 0;
 }
 
 int cJsonParseObjStateERR(pParserStruct_T st)
 {
+    cJsonFree(&(st->obj));
+    cJsonNodeFree(&(st->curNode));
+    st->ret = -1;
+    st->state = OBJ_STATE_DONE;
 
+    return 0;
 }
 
 int cJsonParseObjStateSuccess(pParserStruct_T st)
 {
+    st->ret = 0;
+    st->state = OBJ_STATE_DONE;
 
+    return 0;
 }
 
 

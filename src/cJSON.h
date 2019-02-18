@@ -81,6 +81,7 @@ typedef struct {
     const char *text;
     pJsonObj_T obj;
     pJsonNode_T curNode;
+    int ret;
 }ParserStruct_T, *pParserStruct_T;
 
 
