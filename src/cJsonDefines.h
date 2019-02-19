@@ -5,9 +5,12 @@
 #ifndef CJSON_CJSONDEFINES_H
 #define CJSON_CJSONDEFINES_H
 
+#include <stdlib.h>
+
 #define KEY_VAL_STR             "\"%s\":\"%s\"" //"key":prefix val suffix;
 #define KEY_VAL_INT             "\"%s\":%ld"
 #define KEY_VAL_BOOL            "\"%s\":%s"     // for bool, json object
+#define ARR_VAL_STR             "\"%s\""
 #define STR_PRE_SUF_FIX         '\"'
 #define OBJ_PRE_FIX             '{'
 #define OBJ_SUF_FIX             '}'

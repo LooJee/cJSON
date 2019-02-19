@@ -69,7 +69,7 @@ pJsonObj_T cJsonNew()
 
     obj->head = NULL;
     obj->size = 0;
-    obj->jsonStr = NULL;
+//    obj->jsonStr = NULL;
 
     return obj;
 }
@@ -109,10 +109,15 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
         goto ERR;
     }
 
-    n->key = (char *)malloc(kSize);
-    if (n->key == NULL) {
-        perror("malloc node->key failed\n");
-        goto ERR;
+    if (kSize == 0) {
+        n->key = NULL;
+    } else {
+        n->key = (char *)malloc(kSize);
+        if (n->key == NULL) {
+            perror("malloc node->key failed\n");
+            goto ERR;
+        }
+        memset(n->key, 0, kSize);
     }
 
     if (type == TYPE_STRING) {
@@ -121,6 +126,7 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
             perror("malloc node->value.stringVal failed\n");
             goto ERR;
         }
+        memset(n->value.stringVal, 0, vSize);
     }
 
     n->next = NULL;
@@ -153,9 +159,12 @@ void cJsonDel(pJsonObj_T obj, const char *key)
             if (tmp->next != NULL) {
                 tmp->next->prev = tmp->prev;
             }
-            cJsonNodeFree(&tmp);
+            pJsonNode_T freeNode = tmp;
+            tmp = tmp->next;
+            cJsonNodeFree(&freeNode);
+        } else {
+            tmp = tmp->next;
         }
-        tmp = tmp->next;
     }
 }
 
@@ -172,7 +181,7 @@ void cJsonFree(pJsonObj_T *obj)
         cJsonNodeFree(&tmp);
         tmp = (*obj)->head;
     }
-    S_FREE((*obj)->jsonStr);
+//    S_FREE((*obj)->jsonStr);
     S_FREE(*obj);
 }
 
@@ -317,6 +326,23 @@ void cJsonAddObj(pJsonObj_T obj, const char *key, pJsonObj_T value)
     cJsonAdd(obj, node);
 }
 
+void cJsonAddArray(pJsonObj_T obj, const char *key, pJsonArray_T val)
+{
+    if (obj == NULL) {
+        return;
+    }
+
+    pJsonNode_T node = cJsonNodeNew(strlen(key)+1, 0, TYPE_ARRAY);
+    if (node == NULL) {
+        return;
+    }
+
+    strncpy(node->key, key, strlen(key));
+    node->value.arrVal = val;
+
+    cJsonAdd(obj, node);
+}
+
 void cJsonPrint(pJsonObj_T obj)
 {
     if (obj == NULL) {
@@ -325,67 +351,128 @@ void cJsonPrint(pJsonObj_T obj)
     }
 
     for (pJsonNode_T tmp = obj->head; tmp != NULL; tmp = tmp->next) {
-        if (tmp->type == TYPE_INT) {
-            printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);
-        } else if (tmp->type == TYPE_STRING) {
-            printf("key : %s, value : %s\n", tmp->key, tmp->value.stringVal);
-        } else if (tmp->type == TYPE_BOOL) {
-            printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal ? TRUE_STR : FALSE_STR);
-        } else if (tmp->type == TYPE_OBJECT) {
-            printf("key : %s, object start\n", tmp->key);
-            cJsonPrint(tmp->value.objVal);
-            printf("key : %s, object end\n", tmp->key);
+        switch (tmp->type) {
+            case TYPE_INT:
+                printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);
+                break;
+            case TYPE_STRING:
+                printf("key : %s, value : %s\n", tmp->key, tmp->value.stringVal);
+                break;
+            case TYPE_BOOL:
+                printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal ? TRUE_STR : FALSE_STR);
+                break;
+            case TYPE_OBJECT:
+                printf("--key : %s, object start {\n", tmp->key);
+                cJsonPrint(tmp->value.objVal);
+                printf("--key : %s, object end }\n", tmp->key);
+                break;
+            case TYPE_ARRAY:
+                printf("array start [\n");
+                cJsonArrPrint(tmp->value.arrVal);
+                printf("array end ]\n");
+                break;
+            default:
+                break;
         }
     }
 }
 
 char *cJsonNodeFormatNum(pJsonNode_T node)
 {
-    unsigned long len = strlen(KEY_VAL_INT)+strlen(node->key)+MAX_NUM_STR_LEN+1;
-    char *str = (char *)malloc(len);
-    if (str) {
-        snprintf(str, len, KEY_VAL_INT, node->key, node->value.lVal);
-    }
+    if (node->key == NULL) {
+        /*json array, without key*/
+        size_t len = MAX_NUM_STR_LEN + 1;
+        char *str = (char *)malloc(len);
+        if (str) {
+            snprintf(str, len, "%ld", node->value.lVal);
+        }
 
-    return str;
+        return str;
+    } else {
+        /*json object, with key*/
+        size_t len = strlen(KEY_VAL_INT)+strlen(node->key)+MAX_NUM_STR_LEN+1;
+        char *str = (char *)malloc(len);
+        if (str) {
+            snprintf(str, len, KEY_VAL_INT, node->key, node->value.lVal);
+        }
+
+        return str;
+    }
 }
 
 char *cJsonNodeFormatBool(pJsonNode_T node)
 {
-    unsigned long len = strlen(KEY_VAL_BOOL) + strlen(node->key) + MAX_BOOL_STR_LEN + 1;
-    char *str = (char *)malloc(len);
-    if (str) {
-        snprintf(str, len, KEY_VAL_BOOL, node->key, node->value.boolVal ? TRUE_STR : FALSE_STR);
-    }
+    if (node->key == NULL) {
+        return (node->value.boolVal) ? TRUE_STR : FALSE_STR;
+    } else {
+        unsigned long len = strlen(KEY_VAL_BOOL) + strlen(node->key) + MAX_BOOL_STR_LEN + 1;
+        char *str = (char *)malloc(len);
+        if (str) {
+            snprintf(str, len, KEY_VAL_BOOL, node->key, node->value.boolVal ? TRUE_STR : FALSE_STR);
+        }
 
-    return str;
+        return str;
+    }
 }
 
 char *cJsonNodeFormatString(pJsonNode_T node)
 {
-    unsigned long len = strlen(KEY_VAL_STR) + strlen(node->key) + strlen(node->value.stringVal)+1;
-    char *str = (char *)malloc(len);
-    if (str) {
-        snprintf(str, len, KEY_VAL_STR, node->key, node->value.stringVal);
-    }
+    if (node->key == NULL) {
+        size_t len = strlen(ARR_VAL_STR) + strlen(node->value.stringVal) + 1;
+        char *str = (char *)malloc(len);
+        if (str) {
+            snprintf(str, len, ARR_VAL_STR, node->value.stringVal);
+        }
+        return str;
+    } else {
+        size_t len = strlen(KEY_VAL_STR) + strlen(node->key) + strlen(node->value.stringVal)+1;
+        char *str = (char *)malloc(len);
+        if (str) {
+            snprintf(str, len, KEY_VAL_STR, node->key, node->value.stringVal);
+        }
 
-    return str;
+        return str;
+    }
 }
 
 char *cJsonNodeFormatObj(pJsonNode_T node)
 {
-    char *val = cJsonMashal(node->value.objVal);
-    char *str = NULL;
-    if (val) {
-        unsigned long len = strlen(KEY_VAL_BOOL) + strlen(node->key) + strlen(val)+1;
-        str = (char *)malloc(len);
-        if (str) {
-            snprintf(str, len, KEY_VAL_BOOL, node->key, val);
-            S_FREE(val);
+    if (node->key == NULL) {
+        return cJsonMashal(node->value.objVal);
+    } else {
+        char *val = cJsonMashal(node->value.objVal);
+        char *str = NULL;
+        if (val) {
+            size_t len = strlen(KEY_VAL_BOOL) + strlen(node->key) + strlen(val)+1;
+            str = (char *)malloc(len);
+            if (str) {
+                snprintf(str, len, KEY_VAL_BOOL, node->key, val);
+                S_FREE(val);
+            }
         }
-    }
 
-    return str;
+        return str;
+    }
+}
+
+char *cJsonNodeFormatArray(pJsonNode_T node)
+{
+    if (node->key == NULL) {
+        return cJsonArrMashal(node->value.arrVal);
+    } else {
+        char *val = cJsonArrMashal(node->value.arrVal);
+        char *str = NULL;
+        if (val) {
+            size_t len = strlen(KEY_VAL_BOOL) + strlen(node->key) + strlen(val) +1;
+            str = (char *)malloc(len);
+            if (str) {
+                snprintf(str, len, KEY_VAL_BOOL, node->key, val);
+                S_FREE(val);
+            }
+        }
+
+        return str;
+    }
 }
 
 char *cJsonNodeFormat(pJsonNode_T node)
@@ -403,11 +490,69 @@ char *cJsonNodeFormat(pJsonNode_T node)
             break;
         case TYPE_OBJECT:
             s = cJsonNodeFormatObj(node);
+            break;
+        case TYPE_ARRAY:
+            s = cJsonNodeFormatArray(node);
+            break;
         default:
             break;
     }
     return s;
 }
+
+char *cJsonArrMashal(pJsonArray_T arr)
+{
+    char *str = (char *)malloc(BASE_STR_SIZE);
+    if (str == NULL) {
+        return str;
+    }
+
+    char *tmpstr = str;
+    size_t strSize = BASE_STR_SIZE;
+    memset(str, 0, BASE_STR_SIZE);
+    tmpstr[0] = ARR_PRE_FIX;
+    ++tmpstr;
+
+    for (pJsonNode_T tmp = arr->head; tmp != NULL; tmp = tmp->next) {
+        char *val = cJsonNodeFormat(tmp);
+        if (val == NULL) {
+            S_FREE(str);
+            return NULL;
+        }
+
+        size_t len = tmpstr - str;
+        size_t valLen = strlen(val);
+        if (len + valLen + SHOULD_REALLOC > strSize) {
+            strSize += (valLen/SHOULD_REALLOC+1)*SHOULD_REALLOC;
+            char *rstr = (char *)realloc(str, strSize);
+            if (rstr == NULL) {
+                S_FREE(str);
+                S_FREE(val);
+                return NULL;
+            } else {
+                str = rstr;
+                tmpstr = str+len;
+            }
+        }
+        sprintf(tmpstr, "%s", val);
+
+        if (tmp->type != TYPE_BOOL) {
+            S_FREE(val);
+        }
+        tmpstr += valLen;
+
+        if (tmp->next != NULL) {
+            *tmpstr = ',';
+            ++tmpstr;
+        }
+    }
+
+    *tmpstr = ARR_SUF_FIX;
+    *(tmpstr+1) = '\0';
+
+    return str;
+}
+
 
 char *cJsonMashal(pJsonObj_T obj)
 {
@@ -415,7 +560,7 @@ char *cJsonMashal(pJsonObj_T obj)
     if (str == NULL) {
         return NULL;
     }
-    unsigned long strSize = BASE_STR_SIZE;
+    size_t strSize = BASE_STR_SIZE;
     memset(str, 0, BASE_STR_SIZE);
     str[0] = OBJ_PRE_FIX;
     char *tmp = str+1;
@@ -426,15 +571,15 @@ char *cJsonMashal(pJsonObj_T obj)
             S_FREE(str);
             return NULL;
         }
-        unsigned long len = tmp-str;
-        unsigned long valLen = strlen(val);
-        if (len + valLen > SHOULD_REALLOC) {
+        size_t len = tmp-str;
+        size_t valLen = strlen(val);
+        if (len + valLen + SHOULD_REALLOC > strSize) {
             strSize += (valLen/SHOULD_REALLOC+1)*SHOULD_REALLOC;
             char *rstr = (char *)realloc(str, strSize);
             if (rstr == NULL) {
                 S_FREE(str);
                 S_FREE(val);
-                break;
+                return NULL;
             } else {
                 str = rstr;
                 tmp = str+len;
@@ -444,19 +589,19 @@ char *cJsonMashal(pJsonObj_T obj)
         S_FREE(val);
         tmp += valLen;
 
-        if (node->next == NULL) {
-            *tmp = OBJ_SUF_FIX;
-            *(tmp+1) = '\0';
-        } else {
+        if (node->next != NULL) {
             *tmp = ',';
             ++tmp;
         }
     }
 
-    S_FREE(obj->jsonStr);
-    obj->jsonStr = str;
+    *tmp = OBJ_SUF_FIX;
+    *(tmp+1) = '\0';
 
-    return obj->jsonStr;
+//    S_FREE(obj->jsonStr);
+//    obj->jsonStr = str;
+
+    return str;
 }
 
 pJsonObj_T cJsonParse(const char *text)
@@ -785,4 +930,180 @@ int cJsonParseObjStateSuccess(pParserStruct_T st)
     return 0;
 }
 
+pJsonArray_T cJsonArrNew()
+{
+    pJsonArray_T arr = (pJsonArray_T)malloc(sizeof(JsonArray_T));
+    if (arr == NULL) {
+        perror("malloc array failed\n");
+        return NULL;
+    }
 
+    arr->size = 0;
+    arr->head = NULL;
+    arr->end = NULL;
+
+    return arr;
+}
+
+void cJsonArrAppend(pJsonArray_T arr, pJsonNode_T val)
+{
+    if (arr == NULL || val == NULL) {
+        return;
+    }
+
+    if (arr->head == NULL && arr->end == NULL) {
+        arr->head = val;
+        arr->end = val;
+    } else if (arr->head == arr->end) {
+        arr->head->next = val;
+        val->prev = arr->head;
+        arr->end = val;
+    } else {
+        arr->end->next = val;
+        val->prev = arr->end;
+        arr->end = val;
+    }
+
+    ++arr->size;
+}
+
+void cJsonArrAppendNum(pJsonArray_T arr, long val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_INT);
+    item->value.lVal = val;
+    cJsonArrAppend(arr, item);
+}
+
+void cJsonArrAppendString(pJsonArray_T arr, const char *val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, strlen(val)+1, TYPE_STRING);
+    strncpy(item->value.stringVal, val, strlen(val));
+    cJsonArrAppend(arr, item);
+}
+
+void cJsonArrAppendBool(pJsonArray_T arr, bool val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_BOOL);
+    item->value.boolVal = val;
+    cJsonArrAppend(arr, item);
+}
+
+void cJsonArrAppendObj(pJsonArray_T arr, pJsonObj_T val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_OBJECT);
+    item->value.objVal = val;
+    cJsonArrAppend(arr, item);
+}
+
+void cJsonArrAppendArr(pJsonArray_T arr, pJsonArray_T val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_ARRAY);
+    item->value.arrVal = val;
+    cJsonArrAppend(arr, item);
+}
+
+void cJsonArrInsertAt(pJsonArray_T arr, size_t idx, pJsonNode_T val)
+{
+    if (arr == NULL || val == NULL) {
+        return;
+    }
+
+    pJsonNode_T tmp = NULL;
+
+    if (idx >= arr->size) {
+        cJsonArrAppend(arr, val);
+        return;
+    } else if (idx <= arr->size/2) {
+        tmp = arr->head;
+        for (size_t i = 0; i <= idx; ++i, tmp = tmp->next){
+            if (i == idx)
+                break;
+        }
+    } else if (idx > arr->size/2) {
+        tmp = arr->end;
+        for (size_t i = arr->size; i > idx; --i, tmp = tmp->prev) {
+            if (i == idx)
+                break;
+        }
+    } else {
+        return;
+    }
+
+    val->next = tmp->next;
+    if (tmp->prev) {
+        tmp->prev->next = val;
+    } else {
+        arr->head = val;
+    }
+    val->prev = tmp->prev;
+
+    cJsonNodeFree(&tmp);
+}
+void cJsonArrInsertNumAt(pJsonArray_T arr, size_t idx, long val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_INT);
+    item->value.lVal = val;
+    cJsonArrInsertAt(arr, idx, item);
+}
+
+void cJsonArrInsertStringAt(pJsonArray_T arr, size_t idx, const char *val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, strlen(val)+1, TYPE_STRING);
+    strncpy(item->value.stringVal, val, strlen(val));
+    cJsonArrInsertAt(arr, idx, item);
+}
+
+void cJsonArrInsertBoolAt(pJsonArray_T arr, size_t idx, bool val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_BOOL);
+    item->value.boolVal = val;
+    cJsonArrInsertAt(arr, idx, item);
+}
+
+void cJsonArrInsertObjAt(pJsonArray_T arr, size_t idx, pJsonObj_T val)
+{
+    pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_OBJECT);
+    item->value.objVal = val;
+    cJsonArrInsertAt(arr, idx, item);
+}
+
+void cJsonArrInsertArrAt(pJsonArray_T arr, size_t idx, pJsonArray_T val)
+{
+    pJsonNode_T item= cJsonNodeNew(0, 0, TYPE_ARRAY);
+    item->value.arrVal = val;
+    cJsonArrInsertAt(arr, idx, item);
+}
+
+void cJsonArrPrint(pJsonArray_T arr)
+{
+    if (arr->size == 0) {
+        printf("[]");
+        return;
+    }
+
+    for (pJsonNode_T tmp = arr->head; tmp != NULL; tmp = tmp->next) {
+        switch (tmp->type) {
+            case TYPE_INT:
+                printf("key : %s, value : %ld\n", tmp->key, tmp->value.lVal);
+                break;
+            case TYPE_STRING:
+                printf("key : %s, value : %s\n", tmp->key, tmp->value.stringVal);
+                break;
+            case TYPE_BOOL:
+                printf("key : %s, value : %s\n", tmp->key, tmp->value.boolVal ? TRUE_STR : FALSE_STR);
+                break;
+            case TYPE_OBJECT:
+                printf("--key : %s, object start {\n", tmp->key);
+                cJsonPrint(tmp->value.objVal);
+                printf("--key : %s, object end }\n", tmp->key);
+                break;
+            case TYPE_ARRAY:
+                printf("--key : %s, array start [\n", tmp->key);
+                cJsonArrPrint(tmp->value.arrVal);
+                printf("--key : %s, array end ]\n", tmp->key);
+                break;
+            default:
+                break;
+        }
+    }
+}
