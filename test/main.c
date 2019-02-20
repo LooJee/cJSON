@@ -38,9 +38,6 @@ int main(int arc, char *argv[])
     printf("mashal : %s\n", str);
     S_FREE(str);
 
-//    cJsonPrint(obj);
-
-    printf("after delete\n");
     cJsonDel(obj, "test2");
     str = cJsonMashal(obj);
     printf("mashal : %s\n", str);
@@ -56,10 +53,17 @@ int main(int arc, char *argv[])
     printf("mashal : %s\n", str);
     S_FREE(str);
 
+    cJsonArrDel(arr, 0);
+    str = cJsonMashal(obj);
+    printf("mashal : %s\n", str);
+    S_FREE(str);
+
     cJsonFree(&obj);
 
-//    pJsonObj_T parse_obj = cJsonParse("{\"number\":12,  \"str\":\"111\", \"b\":true, \"f\":false, \"obj\":{\"str\":\"lll\"}}");
-//    cJsonPrint(parse_obj);
+    pJsonObj_T parse_obj = cJsonParse("{\"number\":12,  \"str\":\"111\", \"b\":true, \"f\":false, \"obj\":{\"str\":\"lll\"}}");
+    str = cJsonMashal(parse_obj);
+    printf("mashal : %s\n", str);
+    S_FREE(str);
 
     return 0;
 }

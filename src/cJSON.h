@@ -39,7 +39,7 @@ typedef enum {
     ARR_STATE_IDLE = 0,
     ARR_STATE_WAIT_FOR_VAL,
     ARR_STATE_PARSE_NUM_START,
-    ARR_STATE_PARSE_BNOOL_START,
+    ARR_STATE_PARSE_BOOL_START,
     ARR_STATE_PARSE_STR_START,
     ARR_STATE_PARSE_OBJ_START,
     ARR_STATE_PARSE_ARR_START,
@@ -74,13 +74,24 @@ typedef struct JsonArray_S{
 typedef struct JsonObj_S{
     unsigned long size;
     pJsonNode_T head;
-    char *jsonStr;
 }JsonObj_T, *pJsonObj_T;
 
-typedef struct {
-    OBJ_PARSE_STATE_E state;
-    const char *text;
+typedef union {
     pJsonObj_T obj;
+    pJsonArray_T arr;
+}Json_U;
+
+typedef union {
+    OBJ_PARSE_STATE_E obj_state;
+    ARR_PARSE_STATE_E arr_state;
+}PARSE_STATE_U;
+
+typedef struct {
+//    OBJ_PARSE_STATE_E state;
+    PARSE_STATE_U state;
+    const char *text;
+//    pJsonObj_T obj;
+    Json_U  json;
     pJsonNode_T curNode;
     int ret;
 }ParserStruct_T, *pParserStruct_T;
@@ -101,6 +112,8 @@ void cJsonPrint(pJsonObj_T obj);
 pJsonObj_T cJsonParse(const char *text);
 
 pJsonArray_T cJsonArrNew();
+void cJsonArrFree(pJsonArray_T *arr);
+void cJsonArrDel(pJsonArray_T arr, size_t idx);
 void cJsonArrAppend(pJsonArray_T arr, pJsonNode_T val);
 void cJsonArrAppendNum(pJsonArray_T arr, long val);
 void cJsonArrAppendString(pJsonArray_T arr, const char *val);
@@ -115,5 +128,7 @@ void cJsonArrInsertObjAt(pJsonArray_T arr, size_t idx, pJsonObj_T val);
 void cJsonArrInsertArrAt(pJsonArray_T arr, size_t idx, pJsonArray_T val);
 void cJsonArrPrint(pJsonArray_T arr);
 char *cJsonArrMashal(pJsonArray_T arr);
+pJsonNode_T cJsonArrAt(pJsonArray_T arr, size_t idx);
+pJsonArray_T cJsonArrParse(const char *text);
 
 #endif //CJSON_CJSON_H
