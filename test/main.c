@@ -53,17 +53,29 @@ int main(int arc, char *argv[])
     printf("mashal : %s\n", str);
     S_FREE(str);
 
+    cJsonArrReplaceNumAt(arr, 0, 123);
+    str = cJsonMashal(obj);
+    printf("mashal : %s\n", str);
+    S_FREE(str);
+
     cJsonArrDel(arr, 0);
     str = cJsonMashal(obj);
     printf("mashal : %s\n", str);
     S_FREE(str);
 
-    cJsonFree(&obj);
 
-    pJsonObj_T parse_obj = cJsonParse("{\"number\":12,  \"str\":\"111\", \"b\":true, \"f\":false, \"obj\":{\"str\":\"lll\"}, \"arr\":[1,2,true, \"123\", [1,2,3], {\"1\":123}]}");
+    pJsonObj_T parse_obj = cJsonParse("{\"number\":12, \"str\":\"111\", \"b\":true, \"f\":false, \"obj\":{\"str\":\"lll\"}, \"arr\":[1,2,true, \"123\", [1,2,3], {\"1\":123}]}");
     str = cJsonMashal(parse_obj);
     printf("mashal : %s\n", str);
     S_FREE(str);
+
+    cJsonArrReplaceObjAt(arr, 0, parse_obj);
+    str = cJsonMashal(obj);
+    printf("mashal : %s\n", str);
+    S_FREE(str);
+
+    cJsonFree(&obj);
+    cJsonFree(&parse_obj);
 
     return 0;
 }

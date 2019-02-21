@@ -918,9 +918,6 @@ int cJsonParseObjStatePVOS(pParserStruct_T st)
     subSt.curNode = NULL;//(pJsonNode_T)malloc(sizeof(JsonNode_T));
     subSt.isSubObj = true;
 
-//    if (subSt.curNode == NULL) {
-//        st->state.obj_state = OBJ_STATE_ERROR;
-//    } else {
     while (subSt.state.obj_state != OBJ_STATE_DONE) {
         gJsonObjParsers[subSt.state.obj_state](&subSt);
     }
@@ -935,7 +932,6 @@ int cJsonParseObjStatePVOS(pParserStruct_T st)
     } else {
         st->state.obj_state = OBJ_STATE_ERROR;
     }
-//    }
 
 
     return 0;
@@ -1040,6 +1036,9 @@ pJsonArray_T cJsonArrNew()
     return arr;
 }
 
+/*
+ * @description : get node from array at idx
+ * */
 pJsonNode_T cJsonArrAt(pJsonArray_T arr, size_t idx)
 {
     pJsonNode_T node = NULL;
@@ -1175,40 +1174,25 @@ void cJsonArrInsertAt(pJsonArray_T arr, size_t idx, pJsonNode_T val)
         return;
     }
 
-    pJsonNode_T tmp = NULL;
-
-    if (idx >= arr->size) {
+    pJsonNode_T node = cJsonArrAt(arr, idx);
+    if (node == NULL) {
         cJsonArrAppend(arr, val);
-        return;
-    } else if (idx <= arr->size/2) {
-        tmp = arr->head;
-        for (size_t i = 0; i <= idx; ++i, tmp = tmp->next){
-            if (i == idx)
-                break;
-        }
-    } else if (idx > arr->size/2) {
-        tmp = arr->end;
-        for (size_t i = arr->size; i > idx; --i, tmp = tmp->prev) {
-            if (i == idx)
-                break;
-        }
     } else {
-        return;
+        if (node->prev == NULL) {
+            arr->head = val;
+        } else {
+            node->prev->next = val;
+        }
+        val->next = node->next;
+        node->prev = val;
     }
-
-    val->next = tmp->next;
-    if (tmp->prev) {
-        tmp->prev->next = val;
-    } else {
-        arr->head = val;
-    }
-    val->prev = tmp->prev;
-
-    cJsonNodeFree(&tmp);
 }
+
 void cJsonArrInsertNumAt(pJsonArray_T arr, size_t idx, long val)
 {
     pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_INT);
+    if (item == NULL)
+        return;
     item->value.lVal = val;
     cJsonArrInsertAt(arr, idx, item);
 }
@@ -1216,6 +1200,9 @@ void cJsonArrInsertNumAt(pJsonArray_T arr, size_t idx, long val)
 void cJsonArrInsertStringAt(pJsonArray_T arr, size_t idx, const char *val)
 {
     pJsonNode_T item = cJsonNodeNew(0, strlen(val)+1, TYPE_STRING);
+    if (item == NULL)
+        return;
+
     strncpy(item->value.stringVal, val, strlen(val));
     cJsonArrInsertAt(arr, idx, item);
 }
@@ -1223,6 +1210,9 @@ void cJsonArrInsertStringAt(pJsonArray_T arr, size_t idx, const char *val)
 void cJsonArrInsertBoolAt(pJsonArray_T arr, size_t idx, bool val)
 {
     pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_BOOL);
+    if (item == NULL)
+        return;
+
     item->value.boolVal = val;
     cJsonArrInsertAt(arr, idx, item);
 }
@@ -1230,6 +1220,9 @@ void cJsonArrInsertBoolAt(pJsonArray_T arr, size_t idx, bool val)
 void cJsonArrInsertObjAt(pJsonArray_T arr, size_t idx, pJsonObj_T val)
 {
     pJsonNode_T item = cJsonNodeNew(0, 0, TYPE_OBJECT);
+    if (item == NULL)
+        return;
+
     item->value.objVal = val;
     cJsonArrInsertAt(arr, idx, item);
 }
@@ -1237,8 +1230,94 @@ void cJsonArrInsertObjAt(pJsonArray_T arr, size_t idx, pJsonObj_T val)
 void cJsonArrInsertArrAt(pJsonArray_T arr, size_t idx, pJsonArray_T val)
 {
     pJsonNode_T item= cJsonNodeNew(0, 0, TYPE_ARRAY);
+    if (item == NULL)
+        return;
+
     item->value.arrVal = val;
     cJsonArrInsertAt(arr, idx, item);
+}
+
+void cJsonArrReplaceAt(pJsonArray_T arr, size_t idx, pJsonNode_T val)
+{
+    if (arr == NULL || val == NULL) {
+        return;
+    }
+
+    pJsonNode_T tmp = cJsonArrAt(arr, idx);
+    if (tmp == NULL) {
+        return;
+    } else {
+        if (tmp->prev == NULL) {
+            arr->head = val;
+        } else {
+            tmp->prev->next = val;
+        }
+
+        if (tmp->next == NULL) {
+            arr->end = val;
+        } else {
+            tmp->next->prev = val;
+        }
+
+        val->prev = tmp->prev;
+        val->next = tmp->next;
+        cJsonNodeFree(&tmp);
+    }
+}
+
+void cJsonArrReplaceNumAt(pJsonArray_T arr, size_t idx, long val)
+{
+    pJsonNode_T n = cJsonNodeNew(0, 0, TYPE_INT);
+    if (n == NULL)
+        return;
+
+    n->value.lVal = val;
+
+    cJsonArrReplaceAt(arr, idx, n);
+}
+
+void cJsonArrReplaceStringAt(pJsonArray_T arr, size_t idx, const char *val)
+{
+    pJsonNode_T n = cJsonNodeNew(0, strlen(val)+1, TYPE_STRING);
+    if (n == NULL)
+        return;
+
+    strncpy(n->value.stringVal, val, strlen(val));
+
+    cJsonArrReplaceAt(arr, idx, n);
+}
+
+void cJsonArrReplaceBoolAt(pJsonArray_T arr, size_t idx, bool val)
+{
+    pJsonNode_T n = cJsonNodeNew(0, 0, TYPE_BOOL);
+    if (n == NULL)
+        return;
+
+    n->value.boolVal = val;
+
+    cJsonArrReplaceAt(arr, idx, n);
+}
+
+void cJsonArrReplaceObjAt(pJsonArray_T arr, size_t idx, pJsonObj_T val)
+{
+    pJsonNode_T n = cJsonNodeNew(0, 0, TYPE_OBJECT);
+    if (n == NULL)
+        return;
+
+    n->value.objVal = val;
+
+    cJsonArrReplaceAt(arr, idx, n);
+}
+
+void cJsonArrReplaceArrAt(pJsonArray_T arr, size_t idx, pJsonArray_T val)
+{
+    pJsonNode_T n = cJsonNodeNew(0, 0, TYPE_ARRAY);
+    if (n == NULL)
+        return;
+
+    n->value.arrVal = val;
+
+    cJsonArrReplaceAt(arr, idx, n);
 }
 
 void cJsonArrPrint(pJsonArray_T arr)
