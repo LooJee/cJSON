@@ -786,14 +786,19 @@ int cJsonParseObjStateWFV(pParserStruct_T st)
     if (*st->text == STR_PRE_SUF_FIX) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_STR_START;
         ++st->text;
+        st->curNode->type = TYPE_STRING;
     } else if (isdigit(*st->text)) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_NUM_START;
+        st->curNode->type = TYPE_INT;
     } else if (IS_BOOL_PREFIX(*st->text)) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_BOOL_START;
+        st->curNode->type = TYPE_BOOL;
     } else if (*st->text == ARR_PRE_FIX) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_ARR_START;
+        st->curNode->type = TYPE_ARRAY;
     } else if (*st->text == OBJ_PRE_FIX) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_OBJ_START;
+        st->curNode->type = TYPE_OBJECT;
     } else if (IS_GAP_SYMBOL(*st->text)) {
         ++st->text;
     } else {
@@ -814,7 +819,7 @@ int cJsonParseObjStatePVNS(pParserStruct_T st)
 {
     if (IS_GAP_SYMBOL(*st->text)) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_END;
-        st->curNode->type = TYPE_INT;
+//        st->curNode->type = TYPE_INT;
         cJsonAdd(st->json.obj, st->curNode);
         st->curNode = NULL;
         ++st->text;
@@ -824,13 +829,13 @@ int cJsonParseObjStatePVNS(pParserStruct_T st)
         ++st->text;
     } else if (*st->text == COMMA_SYMBOL) {
         st->state.obj_state = OBJ_STATE_WAIT_FOR_KEY;
-        st->curNode->type = TYPE_INT;
+//        st->curNode->type = TYPE_INT;
         cJsonAdd(st->json.obj, st->curNode);
         st->curNode = NULL;
         ++st->text;
     } else if (*st->text == OBJ_SUF_FIX) {
         st->state.obj_state = OBJ_STATE_SUCCESS;
-        st->curNode->type = TYPE_INT;
+//        st->curNode->type = TYPE_INT;
         cJsonAdd(st->json.obj, st->curNode);
         st->curNode = NULL;
         ++st->text;
@@ -851,13 +856,13 @@ int cJsonParseObjStatePVBS(pParserStruct_T st)
     if (strncmp(st->text, TRUE_STR, TRUE_STR_LEN) == 0) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_END;
         st->curNode->value.boolVal = true;
-        st->curNode->type = TYPE_BOOL;
+//        st->curNode->type = TYPE_BOOL;
         cJsonAdd(st->json.obj, st->curNode);
         st->curNode = NULL;
         st->text += TRUE_STR_LEN;
     } else if (strncmp(st->text, FALSE_STR, FALSE_STR_LEN) == 0) {
         st->state.obj_state = OBJ_STATE_PARSE_VAL_END;
-        st->curNode->type = TYPE_BOOL;
+//        st->curNode->type = TYPE_BOOL;
         st->curNode->value.boolVal = false;
         cJsonAdd(st->json.obj, st->curNode);
         st->curNode = NULL;
@@ -888,7 +893,7 @@ int cJsonParseObjStatePVSS(pParserStruct_T st)
         } else {
             strncpy(st->curNode->value.stringVal, st->text, valLen);
             st->curNode->value.stringVal[valLen] = STR_EOF;
-            st->curNode->type = TYPE_STRING;
+//            st->curNode->type = TYPE_STRING;
             cJsonAdd(st->json.obj, st->curNode);
             st->curNode = NULL;
             st->text = strSuffix + 1;
@@ -910,27 +915,27 @@ int cJsonParseObjStatePVOS(pParserStruct_T st)
     subSt.text = st->text;
     subSt.state.obj_state = OBJ_STATE_IDLE;
     subSt.json.obj = NULL;
-    subSt.curNode = (pJsonNode_T)malloc(sizeof(JsonNode_T));
+    subSt.curNode = NULL;//(pJsonNode_T)malloc(sizeof(JsonNode_T));
     subSt.isSubObj = true;
 
-    if (subSt.curNode == NULL) {
-        st->state.obj_state = OBJ_STATE_ERROR;
-    } else {
-        while (subSt.state.obj_state != OBJ_STATE_DONE) {
-            gJsonObjParsers[subSt.state.obj_state](&subSt);
-        }
-
-        if (subSt.ret == 0) {
-            st->text = subSt.text;
-            st->curNode->value.objVal = subSt.json.obj;
-            st->curNode->type = TYPE_OBJECT;
-            cJsonAdd(st->json.obj, st->curNode);
-            st->curNode = NULL;
-            st->state.obj_state = OBJ_STATE_PARSE_VAL_END;
-        } else {
-            st->state.obj_state = OBJ_STATE_ERROR;
-        }
+//    if (subSt.curNode == NULL) {
+//        st->state.obj_state = OBJ_STATE_ERROR;
+//    } else {
+    while (subSt.state.obj_state != OBJ_STATE_DONE) {
+        gJsonObjParsers[subSt.state.obj_state](&subSt);
     }
+
+    if (subSt.ret == 0) {
+        st->text = subSt.text;
+        st->curNode->value.objVal = subSt.json.obj;
+//        st->curNode->type = TYPE_OBJECT;
+        cJsonAdd(st->json.obj, st->curNode);
+        st->curNode = NULL;
+        st->state.obj_state = OBJ_STATE_PARSE_VAL_END;
+    } else {
+        st->state.obj_state = OBJ_STATE_ERROR;
+    }
+//    }
 
 
     return 0;
@@ -938,6 +943,27 @@ int cJsonParseObjStatePVOS(pParserStruct_T st)
 
 int cJsonParseObjStatePVAS(pParserStruct_T st)
 {
+    ParserStruct_T subSt;
+    subSt.text = st->text;
+    subSt.state.arr_state = ARR_STATE_IDLE;
+    subSt.ret = 0;
+    subSt.json.arr = NULL;
+    subSt.curNode = NULL;
+
+    while (subSt.state.arr_state != ARR_STATE_DONE) {
+        gJsonArrParsers[subSt.state.arr_state](&subSt);
+    }
+
+    if (subSt.ret == 0) {
+        st->curNode->value.arrVal = subSt.json.arr;
+//        st->curNode->type = TYPE_ARRAY;
+        st->text = subSt.text;
+        cJsonAdd(st->json.obj, st->curNode);
+        st->curNode = NULL;
+        st->state.obj_state = OBJ_STATE_PARSE_VAL_END;
+    } else {
+        st->state.obj_state = OBJ_STATE_ERROR;
+    }
 
     return 0;
 }
@@ -994,6 +1020,7 @@ int cJsonParseObjStateSuccess(pParserStruct_T st)
 
     st->ret = 0;
     st->state.obj_state = OBJ_STATE_DONE;
+    cJsonNodeFree(&(st->curNode));
 
     return 0;
 }
@@ -1277,7 +1304,12 @@ int cJsonParseArrStateIDLE(pParserStruct_T st)
         ++st->text;
     } else if (*st->text == ARR_PRE_FIX) {
         ++st->text;
-        st->state.arr_state = ARR_STATE_WAIT_FOR_VAL;
+        st->json.arr = cJsonArrNew();
+        if (st->json.arr == NULL) {
+            st->state.arr_state = ARR_STATE_ERROR;
+        } else {
+            st->state.arr_state = ARR_STATE_WAIT_FOR_VAL;
+        }
     } else {
         st->state.arr_state = ARR_STATE_ERROR;
     }
@@ -1345,13 +1377,19 @@ int cJsonParseArrStatePNS(pParserStruct_T st)
         ++st->text;
     } else if (*st->text == COMMA_SYMBOL) {
         st->state.arr_state = ARR_STATE_WAIT_FOR_VAL;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
         ++st->text;
     } else if (*st->text == ARR_SUF_FIX) {
         st->state.arr_state = ARR_STATE_SUCCESS;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
         ++st->text;
     } else if (IS_GAP_SYMBOL(*st->text)) {
-        ++st->text;
         st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
+        ++st->text;
     } else {
         st->state.arr_state = ARR_STATE_ERROR;
     }
@@ -1369,11 +1407,16 @@ int cJsonParseArrStatePBS(pParserStruct_T st)
     if (strncmp(st->text, TRUE_STR, TRUE_STR_LEN) == 0) {
         st->curNode->value.boolVal = true;
         st->state.arr_state = ARR_STATE_PARSE_VAL_END;
-        st->text += TRUE_STR_LEN+1;
+        st->text += TRUE_STR_LEN;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
+        st->curNode = NULL;
     } else if (strncmp(st->text, FALSE_STR, FALSE_STR_LEN) == 0) {
         st->curNode->value.boolVal = false;
         st->state.arr_state = ARR_STATE_PARSE_VAL_END;
-        st->text += FALSE_STR_LEN+1;
+        st->text += FALSE_STR_LEN;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
     } else {
         st->state.arr_state = ARR_STATE_ERROR;
     }
@@ -1398,8 +1441,11 @@ int cJsonParseArrStatePSS(pParserStruct_T st)
             st->state.arr_state = ARR_STATE_ERROR;
         } else {
             strncpy(st->curNode->value.stringVal, st->text, len);
+            st->curNode->value.stringVal[len] = STR_EOF;
             st->text += len+1;
             st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+            cJsonArrAppend(st->json.arr, st->curNode);
+            st->curNode = NULL;
         }
     }
 
@@ -1413,27 +1459,111 @@ int cJsonParseArrStatePSS(pParserStruct_T st)
  * */
 int cJsonParseArrStatePOS(pParserStruct_T st)
 {
-    
+    ParserStruct_T subSt;
+    subSt.isSubObj = true;
+    subSt.text = st->text;
+    subSt.state.obj_state = OBJ_STATE_IDLE;
+    subSt.ret = 0;
+    subSt.json.obj = NULL;
+    subSt.curNode = NULL;
+
+    while (subSt.state.obj_state != OBJ_STATE_DONE) {
+        gJsonObjParsers[subSt.state.obj_state](&subSt);
+    }
+
+    if (subSt.ret == 0) {
+        st->curNode->value.objVal = subSt.json.obj;
+        st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+//        st->curNode->type = TYPE_OBJECT;
+        st->text = subSt.text;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
 
     return 0;
 }
 
+/*
+ * @description : 解析可能为 json array 的值
+ *                  调用 json array 解析状态机成功时，状态变为 ARR_STATE_PARSE_VAL_END
+ *                  否则，状态变为 ARR_STATE_ERROR
+ * */
 int cJsonParseArrStatePAS(pParserStruct_T st)
 {
 
+    ParserStruct_T subSt;
+    subSt.text = st->text;
+    subSt.state.arr_state = ARR_STATE_IDLE;
+    subSt.ret = 0;
+    subSt.json.arr = NULL;
+    subSt.curNode = NULL;
+
+    while (subSt.state.arr_state != ARR_STATE_DONE) {
+        gJsonArrParsers[subSt.state.arr_state](&subSt);
+    }
+
+    if (subSt.ret == 0) {
+        st->curNode->value.arrVal = subSt.json.arr;
+        st->curNode->type = TYPE_ARRAY;
+        st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+        st->text = subSt.text;
+        cJsonArrAppend(st->json.arr, st->curNode);
+        st->curNode = NULL;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
+
+    return 0;
 }
 
+/*
+ * @description : 解析 json array value 成功
+ *                  1、当字符为 , 时，状态变为 ARR_STATE_WAIT_FOR_VAL
+ *                  2、当字符为 ] 时，状态变为 ARR_STATE_SUCCESS
+ *                  3、当为间隔符时，状态不变
+ *                  4、当为其它字符时，状态变为 ARR_STATE_ERROR
+ * */
 int cJsonParseArrStatePVE(pParserStruct_T st)
 {
+    if (*st->text == COMMA_SYMBOL) {
+        st->state.arr_state = ARR_STATE_WAIT_FOR_VAL;
+        ++st->text;
+    } else if (*st->text == ARR_SUF_FIX) {
+        st->state.arr_state = ARR_STATE_SUCCESS;
+        ++st->text;
+    } else if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
 
+    return 0;
 }
 
+/*
+ * @description : 解析 json array 失败
+ *                  释放资源
+ * */
 int cJsonParseArrStateErr(pParserStruct_T st)
 {
+    cJsonArrFree(&st->json.arr);
+    cJsonNodeFree(&st->curNode);
+    st->ret = -1;
+    st->state.arr_state = ARR_STATE_DONE;
 
+    return 0;
 }
 
+/*
+ * @description : 解析 json array 成功
+ * */
 int cJsonParseArrStateSuc(pParserStruct_T st)
 {
+    cJsonNodeFree(&st->curNode);
+    st->ret = 0;
+    st->state.arr_state = ARR_STATE_DONE;
 
+    return 0;
 }

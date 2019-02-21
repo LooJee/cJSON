@@ -60,7 +60,7 @@ int main(int arc, char *argv[])
 
     cJsonFree(&obj);
 
-    pJsonObj_T parse_obj = cJsonParse("{\"number\":12,  \"str\":\"111\", \"b\":true, \"f\":false, \"obj\":{\"str\":\"lll\"}}");
+    pJsonObj_T parse_obj = cJsonParse("{\"number\":12,  \"str\":\"111\", \"b\":true, \"f\":false, \"obj\":{\"str\":\"lll\"}, \"arr\":[1,2,true, \"123\", [1,2,3], {\"1\":123}]}");
     str = cJsonMashal(parse_obj);
     printf("mashal : %s\n", str);
     S_FREE(str);
