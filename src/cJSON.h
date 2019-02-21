@@ -95,7 +95,7 @@ typedef struct {
     Json_U  json;
     pJsonNode_T curNode;
     int ret;
-    bool isSubObj;
+    bool isSubParser;
 }ParserStruct_T, *pParserStruct_T;
 
 

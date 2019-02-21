@@ -74,6 +74,20 @@ int main(int arc, char *argv[])
     printf("mashal : %s\n", str);
     S_FREE(str);
 
+    pJsonArray_T arr_3 = cJsonArrNew();
+    cJsonArrAppendNum(arr_3, 0);
+    cJsonArrAppendString(arr_3, "123123");
+    str = cJsonArrMashal(arr_3);
+    printf("mashal : %s\n", str);
+    S_FREE(str);
+    cJsonArrFree(&arr_3);
+
+    pJsonArray_T parse_arr_1 = cJsonArrParse("[1,2,3]");
+    str = cJsonArrMashal(parse_arr_1);
+    printf("mashal : %s\n", str);
+    S_FREE(str);
+    cJsonArrFree(&parse_arr_1);
+
     cJsonFree(&obj);
     cJsonFree(&parse_obj);
 

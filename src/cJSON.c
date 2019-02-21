@@ -448,6 +448,7 @@ char *cJsonNodeFormatNum(pJsonNode_T node)
 char *cJsonNodeFormatBool(pJsonNode_T node)
 {
     if (node->key == NULL) {
+        /*json array, without key*/
         return (node->value.boolVal) ? TRUE_STR : FALSE_STR;
     } else {
         unsigned long len = strlen(KEY_VAL_BOOL) + strlen(node->key) + MAX_BOOL_STR_LEN + 1;
@@ -463,6 +464,7 @@ char *cJsonNodeFormatBool(pJsonNode_T node)
 char *cJsonNodeFormatString(pJsonNode_T node)
 {
     if (node->key == NULL) {
+        /*json array, without key*/
         size_t len = strlen(ARR_VAL_STR) + strlen(node->value.stringVal) + 1;
         char *str = (char *)malloc(len);
         if (str) {
@@ -483,6 +485,7 @@ char *cJsonNodeFormatString(pJsonNode_T node)
 char *cJsonNodeFormatObj(pJsonNode_T node)
 {
     if (node->key == NULL) {
+        /*json array, without key*/
         return cJsonMashal(node->value.objVal);
     } else {
         char *val = cJsonMashal(node->value.objVal);
@@ -503,6 +506,7 @@ char *cJsonNodeFormatObj(pJsonNode_T node)
 char *cJsonNodeFormatArray(pJsonNode_T node)
 {
     if (node->key == NULL) {
+        /*json array, without key*/
         return cJsonArrMashal(node->value.arrVal);
     } else {
         char *val = cJsonArrMashal(node->value.arrVal);
@@ -547,6 +551,10 @@ char *cJsonNodeFormat(pJsonNode_T node)
 
 char *cJsonArrMashal(pJsonArray_T arr)
 {
+    if (arr == NULL) {
+        return NULL;
+    }
+
     char *str = (char *)malloc(BASE_STR_SIZE);
     if (str == NULL) {
         return str;
@@ -598,7 +606,9 @@ char *cJsonArrMashal(pJsonArray_T arr)
     return str;
 }
 
-
+/*
+ * @description : 将json对象转为字符串
+ * */
 char *cJsonMashal(pJsonObj_T obj)
 {
     if (obj == NULL) {
@@ -647,9 +657,6 @@ char *cJsonMashal(pJsonObj_T obj)
     *tmp = OBJ_SUF_FIX;
     *(tmp+1) = '\0';
 
-//    S_FREE(obj->jsonStr);
-//    obj->jsonStr = str;
-
     return str;
 }
 
@@ -664,7 +671,7 @@ pJsonObj_T cJsonParse(const char *text)
     obj.json.obj = NULL;
     obj.text = text;
     obj.state.obj_state = OBJ_STATE_IDLE;
-    obj.isSubObj = false;
+    obj.isSubParser = false;
 
     while (obj.state.obj_state != OBJ_STATE_DONE) {
         gJsonObjParsers[obj.state.obj_state](&obj);
@@ -916,7 +923,7 @@ int cJsonParseObjStatePVOS(pParserStruct_T st)
     subSt.state.obj_state = OBJ_STATE_IDLE;
     subSt.json.obj = NULL;
     subSt.curNode = NULL;//(pJsonNode_T)malloc(sizeof(JsonNode_T));
-    subSt.isSubObj = true;
+    subSt.isSubParser = true;
 
     while (subSt.state.obj_state != OBJ_STATE_DONE) {
         gJsonObjParsers[subSt.state.obj_state](&subSt);
@@ -945,6 +952,7 @@ int cJsonParseObjStatePVAS(pParserStruct_T st)
     subSt.ret = 0;
     subSt.json.arr = NULL;
     subSt.curNode = NULL;
+    subSt.isSubParser = true;
 
     while (subSt.state.arr_state != ARR_STATE_DONE) {
         gJsonArrParsers[subSt.state.arr_state](&subSt);
@@ -1004,7 +1012,7 @@ int cJsonParseObjStateERR(pParserStruct_T st)
  * */
 int cJsonParseObjStateSuccess(pParserStruct_T st)
 {
-    if(!st->isSubObj) {
+    if(!st->isSubParser) {
         while (*st->text != STR_EOF) {
             if (!IS_GAP_SYMBOL(*st->text)) {
                 st->state.obj_state = OBJ_STATE_ERROR;
@@ -1108,7 +1116,7 @@ void cJsonArrFree(pJsonArray_T *arr)
     (*arr)->end = NULL;
 
     S_FREE(*arr);
-    *arr = NULL;
+//    *arr = NULL;
 }
 
 void cJsonArrAppend(pJsonArray_T arr, pJsonNode_T val)
@@ -1363,6 +1371,7 @@ pJsonArray_T cJsonArrParse(const char *text)
     st.text = text;
     st.ret = 0;
     st.state.arr_state = ARR_STATE_IDLE;
+    st.isSubParser = false;
 
     while (st.state.arr_state != ARR_STATE_DONE) {
         gJsonArrParsers[st.state.arr_state](&st);
@@ -1539,7 +1548,7 @@ int cJsonParseArrStatePSS(pParserStruct_T st)
 int cJsonParseArrStatePOS(pParserStruct_T st)
 {
     ParserStruct_T subSt;
-    subSt.isSubObj = true;
+    subSt.isSubParser = true;
     subSt.text = st->text;
     subSt.state.obj_state = OBJ_STATE_IDLE;
     subSt.ret = 0;
@@ -1578,6 +1587,7 @@ int cJsonParseArrStatePAS(pParserStruct_T st)
     subSt.ret = 0;
     subSt.json.arr = NULL;
     subSt.curNode = NULL;
+    subSt.isSubParser = true;
 
     while (subSt.state.arr_state != ARR_STATE_DONE) {
         gJsonArrParsers[subSt.state.arr_state](&subSt);
@@ -1640,6 +1650,16 @@ int cJsonParseArrStateErr(pParserStruct_T st)
  * */
 int cJsonParseArrStateSuc(pParserStruct_T st)
 {
+    if (!st->isSubParser) {
+        while (*st->text != STR_EOF) {
+            if (!IS_GAP_SYMBOL(*st->text)) {
+                st->state.arr_state = ARR_STATE_ERROR;
+                return 0;
+            }
+            ++st->text;
+        }
+    }
+
     cJsonNodeFree(&st->curNode);
     st->ret = 0;
     st->state.arr_state = ARR_STATE_DONE;
