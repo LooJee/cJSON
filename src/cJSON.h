@@ -105,8 +105,6 @@ void cJsonAddString(pJsonObj_T obj, const char *key, const char *value);
 void cJsonAddObj(pJsonObj_T obj, const char *key, pJsonObj_T value);
 void cJsonAddBool(pJsonObj_T obj, const char *key, bool value);
 void cJsonAddArray(pJsonObj_T obj, const char *key, pJsonArray_T val);
-void *cJsonValue(pJsonObj_T obj, const char *key);
-JSONTYPE_E cJsonValueType(pJsonObj_T obj, const char *key);
 void cJsonDel(pJsonObj_T obj, const char *key);
 void cJsonFree(pJsonObj_T *obj);
 char *cJsonMashal(pJsonObj_T obj);
@@ -138,5 +136,13 @@ void cJsonArrPrint(pJsonArray_T arr);
 char *cJsonArrMashal(pJsonArray_T arr);
 pJsonNode_T cJsonArrAt(pJsonArray_T arr, size_t idx);
 pJsonArray_T cJsonArrParse(const char *text);
+
+pJsonNode_T cJsonVal(pJsonObj_T obj, const char *key);
+JSONTYPE_E cJsonValType(pJsonNode_T n);
+long cJsonValNum(pJsonNode_T node);
+const char *cJsonValString(pJsonNode_T node);
+bool cJsonValBool(pJsonNode_T node);
+pJsonObj_T cJsonValObj(pJsonNode_T node);
+pJsonArray_T cJsonValArr(pJsonNode_T node);
 
 #endif //CJSON_CJSON_H

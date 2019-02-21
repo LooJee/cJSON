@@ -1562,7 +1562,6 @@ int cJsonParseArrStatePOS(pParserStruct_T st)
     if (subSt.ret == 0) {
         st->curNode->value.objVal = subSt.json.obj;
         st->state.arr_state = ARR_STATE_PARSE_VAL_END;
-//        st->curNode->type = TYPE_OBJECT;
         st->text = subSt.text;
         cJsonArrAppend(st->json.arr, st->curNode);
         st->curNode = NULL;
@@ -1666,3 +1665,69 @@ int cJsonParseArrStateSuc(pParserStruct_T st)
 
     return 0;
 }
+
+long cJsonValNum(pJsonNode_T node)
+{
+    if (node == NULL) {
+        return 0;
+    }
+    return node->value.lVal;
+}
+
+const char *cJsonValString(pJsonNode_T node)
+{
+    if (node == NULL) {
+        return NULL;
+    }
+    return node->value.stringVal;
+}
+
+bool cJsonValBool(pJsonNode_T node)
+{
+    if (node == NULL) {
+        return false;
+    }
+
+    return node->value.boolVal;
+}
+
+pJsonObj_T cJsonValObj(pJsonNode_T node)
+{
+    if (node == NULL) {
+        return NULL;
+    }
+    return node->value.objVal;
+}
+
+pJsonArray_T cJsonValArr(pJsonNode_T node)
+{
+    if (node == NULL) {
+        return NULL;
+    }
+    return node->value.arrVal;
+}
+
+pJsonNode_T cJsonVal(pJsonObj_T obj, const char *key)
+{
+    if (obj == NULL || key == NULL) {
+        return NULL;
+    }
+
+    for (pJsonNode_T tmp = obj->head; tmp != NULL; tmp = tmp->next) {
+        if (strcmp(tmp->key, key) == 0) {
+            return tmp;
+        }
+    }
+
+    return NULL;
+}
+
+JSONTYPE_E cJsonValType(pJsonNode_T n)
+{
+    if (n == NULL) {
+        return TYPE_MAX;
+    }
+
+    return n->type;
+}
+
