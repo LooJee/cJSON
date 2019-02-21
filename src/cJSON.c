@@ -148,6 +148,8 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
         goto ERR;
     }
 
+    memset(n, 0, sizeof(JsonNode_T));
+
     if (kSize == 0) {
         n->key = NULL;
     } else {
@@ -160,12 +162,16 @@ pJsonNode_T cJsonNodeNew(unsigned long kSize, unsigned long vSize, JSONTYPE_E ty
     }
 
     if (type == TYPE_STRING) {
-        n->value.stringVal = (char *)malloc(vSize);
-        if (n->value.stringVal == NULL) {
-            perror("malloc node->value.stringVal failed\n");
-            goto ERR;
+        if (vSize == 0) {
+            n->value.stringVal = NULL;
+        } else {
+            n->value.stringVal = (char *)malloc(vSize);
+            if (n->value.stringVal == NULL) {
+                perror("malloc node->value.stringVal failed\n");
+                goto ERR;
+            }
+            memset(n->value.stringVal, 0, vSize);
         }
-        memset(n->value.stringVal, 0, vSize);
     }
 
     n->next = NULL;
@@ -595,6 +601,10 @@ char *cJsonArrMashal(pJsonArray_T arr)
 
 char *cJsonMashal(pJsonObj_T obj)
 {
+    if (obj == NULL) {
+        return NULL;
+    }
+
     char *str = (char *)malloc(BASE_STR_SIZE);
     if (str == NULL) {
         return NULL;
@@ -654,6 +664,7 @@ pJsonObj_T cJsonParse(const char *text)
     obj.json.obj = NULL;
     obj.text = text;
     obj.state.obj_state = OBJ_STATE_IDLE;
+    obj.isSubObj = false;
 
     while (obj.state.obj_state != OBJ_STATE_DONE) {
         gJsonObjParsers[obj.state.obj_state](&obj);
@@ -900,6 +911,7 @@ int cJsonParseObjStatePVOS(pParserStruct_T st)
     subSt.state.obj_state = OBJ_STATE_IDLE;
     subSt.json.obj = NULL;
     subSt.curNode = (pJsonNode_T)malloc(sizeof(JsonNode_T));
+    subSt.isSubObj = true;
 
     if (subSt.curNode == NULL) {
         st->state.obj_state = OBJ_STATE_ERROR;
@@ -964,8 +976,22 @@ int cJsonParseObjStateERR(pParserStruct_T st)
     return 0;
 }
 
+/*
+ * @description : 解析出完整的 json 对象后
+ *                  1、如果解析的
+ * */
 int cJsonParseObjStateSuccess(pParserStruct_T st)
 {
+    if(!st->isSubObj) {
+        while (*st->text != STR_EOF) {
+            if (!IS_GAP_SYMBOL(*st->text)) {
+                st->state.obj_state = OBJ_STATE_ERROR;
+                return 0;
+            }
+            ++st->text;
+        }
+    }
+
     st->ret = 0;
     st->state.obj_state = OBJ_STATE_DONE;
 
@@ -1239,38 +1265,157 @@ pJsonArray_T cJsonArrParse(const char *text)
     return st.json.arr;
 }
 
+/*
+ * @description : 开始解析 json array
+ *                  1、当遇到间隔符时，不改变状态
+ *                  2、当遇到 [ 时，状态变为 ARR_STATE_WAIT_FOR_VAL
+ *                  3、当为其它字符时，状态变为 ARR_STATE_ERROR
+ * */
 int cJsonParseArrStateIDLE(pParserStruct_T st)
+{
+    if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else if (*st->text == ARR_PRE_FIX) {
+        ++st->text;
+        st->state.arr_state = ARR_STATE_WAIT_FOR_VAL;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
+
+    return 0;
+}
+
+/*
+ * @description : 等待 json array 的值
+ *                  1、当遇到 " 时，值可能为字符串，状态变为 ARR_STATE_PARSE_STR_START
+ *                  2、当遇到 { 时，值可能为 json 对象，状态变为 ARR_STATE_PARSE_OBJ_START
+ *                  3、当遇到 [ 时，值可能为 json array，状态变为 ARR_STATE_PARSE_ARR_START
+ *                  4、当遇到 t 或 f 时，值可能为 bool，状态变为 ARR_STATE_PARSE_BOOL_START
+ *                  5、当遇到数字时，值可能为数字，状态变为 ARR_STATE_PARSE_NUM_START
+ *                  6、当遇到间隔符时，状态不变
+ *                  7、其它字符，状态变为 ARR_STATE_ERROR
+ * */
+int cJsonParseArrStateWFV(pParserStruct_T st)
+{
+    JSONTYPE_E valtype = TYPE_MAX;
+    if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+    } else if (*st->text == STR_PRE_SUF_FIX) {
+        ++st->text;
+        valtype = TYPE_STRING;
+        st->state.arr_state = ARR_STATE_PARSE_STR_START;
+    } else if (*st->text == OBJ_PRE_FIX) {
+        valtype = TYPE_OBJECT;
+        st->state.arr_state = ARR_STATE_PARSE_OBJ_START;
+    } else if (isdigit(*st->text)) {
+        valtype = TYPE_INT;
+        st->state.arr_state = ARR_STATE_PARSE_NUM_START;
+    } else if (*st->text == ARR_PRE_FIX) {
+        valtype = TYPE_ARRAY;
+        st->state.arr_state = ARR_STATE_PARSE_ARR_START;
+    } else if (IS_BOOL_PREFIX(*st->text)) {
+        valtype = TYPE_BOOL;
+        st->state.arr_state = ARR_STATE_PARSE_BOOL_START;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
+
+    if (valtype != TYPE_MAX) {
+        st->curNode = cJsonNodeNew(0, 0, valtype);
+        if (st->curNode == NULL) {
+            st->state.arr_state = ARR_STATE_ERROR;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * @description : 解析可能为数字的值
+ *              1、当字符为数字时，状态不变
+ *              2、当字符为 , 时，状态变为 ARR_STATE_WAIT_FOR_VAL
+ *              3、当字符为 ] 时，状态变为 ARR_STATE_SUCCESS
+ *              4、当为间隔符时，状态变为 ARR_STATE_PARSE_VAL_END
+ *              5、当为其它字符时，状态变为 ARR_STATE_ERROR
+ * */
+int cJsonParseArrStatePNS(pParserStruct_T st)
+{
+    if (isdigit(*st->text)) {
+        st->curNode->value.lVal = st->curNode->value.lVal * 10 + *st->text - '0';
+        ++st->text;
+    } else if (*st->text == COMMA_SYMBOL) {
+        st->state.arr_state = ARR_STATE_WAIT_FOR_VAL;
+        ++st->text;
+    } else if (*st->text == ARR_SUF_FIX) {
+        st->state.arr_state = ARR_STATE_SUCCESS;
+        ++st->text;
+    } else if (IS_GAP_SYMBOL(*st->text)) {
+        ++st->text;
+        st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
+
+    return 0;
+}
+
+/*
+ * @description : 解析可能为 bool 类型的值
+ *                  1、如果值和 true 相等或值和 false 相等，则值为 bool 类型，状态变为 ARR_STATE_PARSE_VAL_END
+ *                  2、否则，状态变为 ARR_STATE_ERROR
+ * */
+int cJsonParseArrStatePBS(pParserStruct_T st)
+{
+    if (strncmp(st->text, TRUE_STR, TRUE_STR_LEN) == 0) {
+        st->curNode->value.boolVal = true;
+        st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+        st->text += TRUE_STR_LEN+1;
+    } else if (strncmp(st->text, FALSE_STR, FALSE_STR_LEN) == 0) {
+        st->curNode->value.boolVal = false;
+        st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+        st->text += FALSE_STR_LEN+1;
+    } else {
+        st->state.arr_state = ARR_STATE_ERROR;
+    }
+    return 0;
+}
+
+/*
+ * @description : 解析可能为字符串的值
+ *                  1、当字符为 “ 时，值为字符串，状态转为 ARR_STATE_PARSE_VAL_END
+ *                  2、当字符为 '\0'时，状态状态 ARR_STATE_ERROR
+ *                  3、当为其它字符时，不改变状态
+ * */
+int cJsonParseArrStatePSS(pParserStruct_T st)
+{
+    char *suffix = strchr(st->text, STR_PRE_SUF_FIX);
+    if (suffix == NULL) {
+        st->state.arr_state = ARR_STATE_ERROR;
+    } else {
+        size_t len = suffix - st->text;
+        st->curNode->value.stringVal = (char *)malloc(len+1);
+        if (st->curNode->value.stringVal == NULL) {
+            st->state.arr_state = ARR_STATE_ERROR;
+        } else {
+            strncpy(st->curNode->value.stringVal, st->text, len);
+            st->text += len+1;
+            st->state.arr_state = ARR_STATE_PARSE_VAL_END;
+        }
+    }
+
+    return 0;
+}
+
+/*
+ * @description : 解析可能为 json 对象的值
+ *                  1、当调用 json parse 成功时，状态转为 ARR_STATE_PARSE_VAL_END
+ *                  2、否则，状态转为 ARR_STATE_ERROR
+ * */
+int cJsonParseArrStatePOS(pParserStruct_T st)
 {
     
 
     return 0;
-}
-
-int cJsonParseArrStateWFV(pParserStruct_T st)
-{
-
-    return 0;
-}
-
-int cJsonParseArrStatePNS(pParserStruct_T st)
-{
-
-    return 0;
-}
-
-int cJsonParseArrStatePBS(pParserStruct_T st)
-{
-
-}
-
-int cJsonParseArrStatePSS(pParserStruct_T st)
-{
-
-}
-
-int cJsonParseArrStatePOS(pParserStruct_T st)
-{
-
 }
 
 int cJsonParseArrStatePAS(pParserStruct_T st)

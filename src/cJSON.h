@@ -13,7 +13,8 @@ typedef enum {
     TYPE_BOOL,
     TYPE_STRING,
     TYPE_OBJECT,
-    TYPE_ARRAY
+    TYPE_ARRAY,
+    TYPE_MAX
 }JSONTYPE_E;
 
 // json object 字符串解析状态机
@@ -94,6 +95,7 @@ typedef struct {
     Json_U  json;
     pJsonNode_T curNode;
     int ret;
+    bool isSubObj;
 }ParserStruct_T, *pParserStruct_T;
 
 
